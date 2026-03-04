@@ -1,0 +1,21 @@
+{
+  "pages": [
+    { "path": "pages/index/index", "style": { "navigationBarTitleText": "家庭相框" } },
+    { "path": "pages/upload/index", "style": { "navigationBarTitleText": "上传照片" } },
+    { "path": "pages/bind/index", "style": { "navigationBarTitleText": "绑定相框" } },
+    { "path": "pages/manage/index", "style": { "navigationBarTitleText": "管理照片" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "家庭相框",
+    "backgroundColor": "#F5F5F5"
+  },
+  "tabBar": {
+    "color": "#666666",
+    "selectedColor": "#1976D2",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "相框" },
+      { "pagePath": "pages/manage/index", "text": "管理" }
+    ]
+  }
+}

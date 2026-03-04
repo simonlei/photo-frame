@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: photoframe
+      MYSQL_USER: photoframe
+      MYSQL_PASSWORD: photoframe_pass
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      - mysql
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: photoframe
+      DB_PASS: photoframe_pass
+      DB_NAME: photoframe
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

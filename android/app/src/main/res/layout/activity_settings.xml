@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="相框设置" android:textSize="22sp" android:textStyle="bold"
+            android:layout_marginBottom="24dp" />
+
+        <!-- 展示时长 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="每张照片展示时长（秒）" />
+        <EditText android:id="@+id/et_duration"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="number" android:layout_marginBottom="16dp" />
+
+        <!-- 播放模式 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="播放模式" />
+        <RadioGroup android:id="@+id/rg_play_mode"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="16dp">
+            <RadioButton android:id="@+id/rb_sequential"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="顺序" />
+            <RadioButton android:id="@+id/rb_random"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="随机" android:layout_marginStart="24dp" />
+        </RadioGroup>
+
+        <!-- 切换动画 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="切换动画效果" />
+        <Spinner android:id="@+id/spinner_effect"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 显示照片信息 -->
+        <Switch android:id="@+id/switch_photo_info"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="显示照片信息（日期/上传者）"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 定时黑屏 -->
+        <Switch android:id="@+id/switch_night"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="定时黑屏"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout android:id="@+id/layout_night_time"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone"
+            android:layout_marginBottom="16dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="黑屏时间" android:layout_marginTop="8dp" />
+            <TimePicker android:id="@+id/tp_night_start"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:timePickerMode="spinner" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="亮屏时间" android:layout_marginTop="8dp" />
+            <TimePicker android:id="@+id/tp_night_end"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:timePickerMode="spinner" />
+        </LinearLayout>
+
+        <!-- 相框 ID -->
+        <TextView android:id="@+id/tv_device_id"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#888888" android:textSize="12sp"
+            android:layout_marginBottom="24dp" />
+
+        <Button android:id="@+id/btn_save"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="保存设置" />
+
+    </LinearLayout>
+</ScrollView>

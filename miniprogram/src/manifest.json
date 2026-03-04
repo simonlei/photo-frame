@@ -1,0 +1,12 @@
+{
+  "appid": "your_wx_appid_here",
+  "scope": "wx",
+  "h5": {},
+  "mp-weixin": {
+    "appid": "your_wx_appid_here",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  }
+}
