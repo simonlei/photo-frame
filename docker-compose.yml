@@ -5,14 +5,15 @@ services:
     image: mysql:8.0
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: photoframe
-      MYSQL_USER: photoframe
-      MYSQL_PASSWORD: photoframe_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-photoframe}
+      MYSQL_USER: ${MYSQL_USER:-photoframe}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
+    # 不暴露 3306 到宿主机，只在内部网络访问
+    networks:
+      - internal
     command: --default-authentication-plugin=mysql_native_password
 
   backend:
@@ -25,11 +26,17 @@ services:
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USER: photoframe
-      DB_PASS: photoframe_pass
-      DB_NAME: photoframe
+      DB_USER: ${MYSQL_USER:-photoframe}
+      DB_PASS: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-photoframe}
     ports:
       - "8080:8080"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
 
 volumes:
   mysql_data:

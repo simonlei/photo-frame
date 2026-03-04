@@ -48,32 +48,43 @@ async function startUpload() {
 
   isUploading.value = true
 
-  for (const item of pendingItems) {
-    item.status = 'uploading'
-    try {
-      // 大于 8MB 先压缩
-      const fileInfo = await getFileSize(item.path)
-      let filePath = item.path
-      if (fileInfo > 8 * 1024 * 1024) {
-        const compressed = await compressImage(item.path)
-        filePath = compressed
-      }
-
-      await uploadPhoto(filePath, deviceId.value, (p) => {
-        item.progress = p
-      })
-      item.status = 'done'
-      item.progress = 100
-    } catch (e: any) {
-      item.status = 'error'
-      item.error = e?.message || '上传失败'
-    }
+  // 最多 3 张并发上传，减少等待时间
+  const CONCURRENCY = 3
+  for (let i = 0; i < pendingItems.length; i += CONCURRENCY) {
+    const batch = pendingItems.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(item => uploadItem(item)))
   }
 
   isUploading.value = false
 
   const doneCount = items.value.filter(i => i.status === 'done').length
   uni.showToast({ title: `成功上传 ${doneCount} 张`, icon: 'success' })
+}
+
+async function uploadItem(item: UploadItem) {
+  item.status = 'uploading'
+  try {
+    // 大于 2MB 先压缩（手机照片通常 3-8MB，降低带宽消耗）
+    let filePath = item.path
+    try {
+      const fileSize = await getFileSize(item.path)
+      if (fileSize > 2 * 1024 * 1024) {
+        filePath = await compressImage(item.path)
+      }
+    } catch {
+      // 获取文件大小失败时始终压缩，避免上传超大文件
+      filePath = await compressImage(item.path)
+    }
+
+    await uploadPhoto(filePath, deviceId.value, (p) => {
+      item.progress = p
+    })
+    item.status = 'done'
+    item.progress = 100
+  } catch (e: any) {
+    item.status = 'error'
+    item.error = e?.message || '上传失败'
+  }
 }
 
 function removeItem(index: number) {
@@ -87,9 +98,13 @@ function retryItem(item: UploadItem) {
 }
 
 function getFileSize(path: string): Promise<number> {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const fs = uni.getFileSystemManager()
-    fs.getFileInfo({ filePath: path, success: (i) => resolve(i.size), fail: () => resolve(0) })
+    fs.getFileInfo({
+      filePath: path,
+      success: (i) => resolve(i.size),
+      fail: (err) => reject(new Error(err.errMsg || '获取文件大小失败'))
+    })
   })
 }
 

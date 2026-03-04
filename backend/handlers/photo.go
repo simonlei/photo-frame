@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -16,6 +17,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// isUserBoundToDevice 校验用户是否已绑定指定设备
+func isUserBoundToDevice(db *gorm.DB, userID uint, deviceID string) bool {
+	var count int64
+	db.Table("device_users").Where("device_id = ? AND user_id = ?", deviceID, userID).Count(&count)
+	return count > 0
+}
+
 // UploadPhoto 上传照片到 COS，元数据写入 MySQL
 func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -27,17 +35,7 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 		}
 
 		// 校验用户已绑定该设备
-		var device models.Device
-		if err := db.Where("id = ?", deviceID).First(&device).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "相框不存在"})
-			return
-		}
-		count := db.Model(&device).Association("Users").Count()
-		// 简单校验：查找绑定关系
-		var bindCheck int64
-		db.Table("device_users").Where("device_id = ? AND user_id = ?", deviceID, user.ID).Count(&bindCheck)
-		if bindCheck == 0 {
-			_ = count
+		if !isUserBoundToDevice(db, user.ID, deviceID) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "未绑定该相框"})
 			return
 		}
@@ -48,7 +46,7 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 			return
 		}
 
-		// 校验文件类型
+		// 校验文件扩展名
 		ext := strings.ToLower(filepath.Ext(file.Filename))
 		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".heic": true, ".webp": true}
 		if !allowedExts[ext] {
@@ -56,11 +54,7 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 			return
 		}
 
-		// 构造 COS key
-		now := time.Now()
-		cosKey := fmt.Sprintf("photos/%s/%d/%02d/%s%s",
-			deviceID, now.Year(), now.Month(), uuid.New().String(), ext)
-
+		// 打开文件，先做 Magic Bytes 校验
 		src, err := file.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "文件读取失败"})
@@ -68,10 +62,29 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 		}
 		defer src.Close()
 
+		// 读取文件头用于 MIME 检测（防止扩展名伪造）
+		header := make([]byte, 512)
+		n, _ := src.Read(header)
+		detectedType := http.DetectContentType(header[:n])
+		if !strings.HasPrefix(detectedType, "image/") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "文件内容不是有效的图片"})
+			return
+		}
+		// 重置读取位置，从头上传
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "文件读取失败"})
+			return
+		}
+
 		contentType := mime.TypeByExtension(ext)
 		if contentType == "" {
-			contentType = "image/jpeg"
+			contentType = detectedType
 		}
+
+		// 构造 COS key
+		now := time.Now()
+		cosKey := fmt.Sprintf("photos/%s/%d/%02d/%s%s",
+			deviceID, now.Year(), now.Month(), uuid.New().String(), ext)
 
 		cosURL, err := cos.Upload(c.Request.Context(), cosKey, src, contentType)
 		if err != nil {
@@ -103,9 +116,16 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 // ListPhotos 获取相框照片列表（相框 App 轮询用）
 func ListPhotos(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		user := c.MustGet("user").(*models.User)
 		deviceID := c.Query("device_id")
 		if deviceID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 device_id"})
+			return
+		}
+
+		// 校验当前用户已绑定该设备（防止 IDOR 越权访问他人相框）
+		if !isUserBoundToDevice(db, user.ID, deviceID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "无权访问该相框"})
 			return
 		}
 
@@ -167,8 +187,14 @@ func DeletePhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 		}
 
 		var photo models.Photo
-		if err := db.Where("id = ? AND user_id = ?", photoID, user.ID).First(&photo).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "照片不存在或无权限删除"})
+		if err := db.Where("id = ?", photoID).First(&photo).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "照片不存在"})
+			return
+		}
+
+		// 校验当前用户已绑定该照片所属相框（允许相框内所有绑定用户删除）
+		if !isUserBoundToDevice(db, user.ID, photo.DeviceID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "无权删除该照片"})
 			return
 		}
 

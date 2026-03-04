@@ -15,9 +15,10 @@ import androidx.core.content.FileProvider
 import com.photoframe.data.ApiClient
 import kotlinx.coroutines.*
 import java.io.File
+import java.security.MessageDigest
 
 /**
- * App 内自动更新：检查版本 → 下载 APK → 触发安装
+ * App 内自动更新：检查版本 → 下载 APK → SHA-256 校验 → 触发安装
  */
 class AutoUpdater(private val activity: Activity) {
     private val TAG = "AutoUpdater"
@@ -30,7 +31,7 @@ class AutoUpdater(private val activity: Activity) {
                 val serverVersion = resp.version ?: return@launch
                 if (serverVersion.isNewerThan(currentVersion) && resp.apkUrl != null) {
                     withContext(Dispatchers.Main) {
-                        showUpdateDialog(resp.apkUrl, serverVersion, resp.changelog)
+                        showUpdateDialog(resp.apkUrl, serverVersion, resp.changelog, resp.apkSha256)
                     }
                 }
             } catch (e: Exception) {
@@ -39,16 +40,16 @@ class AutoUpdater(private val activity: Activity) {
         }
     }
 
-    private fun showUpdateDialog(apkUrl: String, version: String, changelog: String?) {
+    private fun showUpdateDialog(apkUrl: String, version: String, changelog: String?, apkSha256: String?) {
         android.app.AlertDialog.Builder(activity)
             .setTitle("发现新版本 v$version")
             .setMessage(changelog ?: "有新版本可用，建议更新。")
-            .setPositiveButton("立即更新") { _, _ -> downloadAndInstall(apkUrl) }
+            .setPositiveButton("立即更新") { _, _ -> downloadAndInstall(apkUrl, apkSha256) }
             .setNegativeButton("稍后", null)
             .show()
     }
 
-    private fun downloadAndInstall(apkUrl: String) {
+    private fun downloadAndInstall(apkUrl: String, expectedSha256: String?) {
         val destFile = File(
             activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
             "update.apk"
@@ -67,7 +68,7 @@ class AutoUpdater(private val activity: Activity) {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
                 if (id == downloadId) {
                     activity.unregisterReceiver(this)
-                    installApk(destFile)
+                    verifyAndInstall(destFile, expectedSha256)
                 }
             }
         }
@@ -80,6 +81,38 @@ class AutoUpdater(private val activity: Activity) {
             activity.registerReceiver(receiver,
                 IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
         }
+    }
+
+    /** 校验 SHA-256 后再安装，防止下载过程中的文件篡改 */
+    private fun verifyAndInstall(apkFile: File, expectedSha256: String?) {
+        if (expectedSha256 != null) {
+            val actualSha256 = calculateSha256(apkFile)
+            if (actualSha256 != expectedSha256.lowercase()) {
+                apkFile.delete()
+                Log.e(TAG, "APK 完整性校验失败！期望: $expectedSha256, 实际: $actualSha256")
+                activity.runOnUiThread {
+                    android.app.AlertDialog.Builder(activity)
+                        .setTitle("更新失败")
+                        .setMessage("文件完整性校验失败，请重试或手动更新。")
+                        .setPositiveButton("确定", null)
+                        .show()
+                }
+                return
+            }
+        }
+        installApk(apkFile)
+    }
+
+    private fun calculateSha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) {
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun installApk(apkFile: File) {

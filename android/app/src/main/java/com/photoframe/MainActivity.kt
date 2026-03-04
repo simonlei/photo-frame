@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         prefs = AppPrefs(this)
-        ApiClient.init(getString(R.string.server_base_url))
+        // ApiClient 已在 PhotoFrameApplication.onCreate() 中初始化，此处无需重复调用
 
         // 全屏沉浸式
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -114,9 +114,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 从设置页返回后重新应用设置
-        adapter = SlideShowAdapter(allPhotos, prefs.showPhotoInfo)
-        viewPager.adapter = adapter
+        // 从设置页返回后重新应用切换效果（不重建 Adapter，保持当前播放位置）
+        adapter.setShowInfo(prefs.showPhotoInfo)
         applyTransitionEffect()
 
         handler.removeCallbacks(autoSlideRunnable)
@@ -131,6 +130,11 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(autoSlideRunnable)
         syncService.stop()
         screenScheduler.stop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        syncService.destroy()
     }
 
     private fun applyTransitionEffect() {

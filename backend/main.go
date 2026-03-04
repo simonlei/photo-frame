@@ -16,6 +16,11 @@ func main() {
 	// 加载 .env 文件（开发环境）
 	_ = godotenv.Load()
 
+	// 生产环境关闭 gin debug 日志
+	if os.Getenv("APP_ENV") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// 初始化数据库
 	db, err := database.Init()
 	if err != nil {
@@ -31,10 +36,14 @@ func main() {
 	)
 
 	// 初始化 Gin
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	if os.Getenv("APP_ENV") != "production" {
+		r.Use(gin.Logger())
+	}
 
-	// 最大上传 32MB
-	r.MaxMultipartMemory = 32 << 20
+	// 最大上传 8MB（超出部分写临时文件）
+	r.MaxMultipartMemory = 8 << 20
 
 	// 公开接口
 	r.POST("/api/wx-login", handlers.WxLogin(db))

@@ -39,6 +39,11 @@ class PhotoSyncService(
         syncJob?.cancel()
     }
 
+    /** 当持有方（如 Activity）销毁时调用，释放协程资源 */
+    fun destroy() {
+        scope.cancel()
+    }
+
     private suspend fun fetchNewPhotos() {
         val deviceId = prefs.deviceId ?: return
         val since = prefs.lastSyncTime

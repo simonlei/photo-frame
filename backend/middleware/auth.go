@@ -3,11 +3,14 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/simonlei/photo-frame/backend/models"
 	"gorm.io/gorm"
 )
+
+const tokenMaxAge = 30 * 24 * time.Hour
 
 // UserAuth 校验用户 Bearer token，将 user 注入 gin context
 func UserAuth(db *gorm.DB) gin.HandlerFunc {
@@ -29,6 +32,13 @@ func UserAuth(db *gorm.DB) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token 无效"})
 			return
 		}
+
+		// 校验 token 是否已过期（30天）
+		if !user.TokenIssuedAt.IsZero() && time.Since(user.TokenIssuedAt) > tokenMaxAge {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token 已过期，请重新登录"})
+			return
+		}
+
 		c.Set("user", &user)
 		c.Next()
 	}

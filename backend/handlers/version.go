@@ -17,9 +17,10 @@ func VersionLatest(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"version":   v.Version,
-			"apk_url":   v.ApkURL,
-			"changelog": v.Changelog,
+			"version":    v.Version,
+			"apk_url":    v.ApkURL,
+			"apk_sha256": v.ApkSha256,
+			"changelog":  v.Changelog,
 		})
 	}
 }

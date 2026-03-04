@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -53,8 +54,9 @@ func WxLogin(db *gorm.DB) gin.HandlerFunc {
 		result := db.Where("openid = ?", wxResp.OpenID).First(&user)
 		if result.Error == gorm.ErrRecordNotFound {
 			user = models.User{
-				Openid: wxResp.OpenID,
-				Token:  uuid.New().String(),
+				Openid:        wxResp.OpenID,
+				Token:         uuid.New().String(),
+				TokenIssuedAt: time.Now(),
 			}
 			if err := db.Create(&user).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
@@ -65,9 +67,9 @@ func WxLogin(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 只返回 token，不暴露 openid
 		c.JSON(http.StatusOK, gin.H{
-			"token":  user.Token,
-			"openid": user.Openid,
+			"token": user.Token,
 		})
 	}
 }

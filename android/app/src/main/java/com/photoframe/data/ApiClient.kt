@@ -1,15 +1,11 @@
 package com.photoframe.data
 
-import android.content.Context
-import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import com.google.gson.reflect.TypeToken
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
-import retrofit2.http.Path
 import retrofit2.http.Query
 
 // ---------- 数据类 ----------
@@ -29,6 +25,7 @@ data class PhotoDto(
 data class VersionResponse(
     @SerializedName("version") val version: String?,
     @SerializedName("apk_url") val apkUrl: String?,
+    @SerializedName("apk_sha256") val apkSha256: String?,
     @SerializedName("changelog") val changelog: String?
 )
 
@@ -54,26 +51,29 @@ interface ApiService {
 // ---------- 单例工厂 ----------
 
 object ApiClient {
-    private var baseUrl: String = "https://your-server.com/"
+    private var _service: ApiService? = null
 
+    /**
+     * 必须在首次访问 [service] 之前调用，建议在 Application.onCreate() 中调用。
+     */
     fun init(url: String) {
-        baseUrl = if (url.endsWith("/")) url else "$url/"
-    }
-
-    private val client: OkHttpClient by lazy {
-        OkHttpClient.Builder()
+        val baseUrl = if (url.endsWith("/")) url else "$url/"
+        val client = OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
             })
             .build()
-    }
-
-    val service: ApiService by lazy {
-        Retrofit.Builder()
+        _service = Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
     }
+
+    val service: ApiService
+        get() = checkNotNull(_service) {
+            "ApiClient.init() must be called before accessing service. " +
+            "Call it in Application.onCreate()."
+        }
 }

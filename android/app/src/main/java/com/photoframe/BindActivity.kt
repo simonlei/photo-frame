@@ -61,17 +61,20 @@ class BindActivity : AppCompatActivity() {
                 .url("$baseUrl/api/device/register")
                 .post("{}".toRequestBody("application/json".toMediaType()))
                 .build()
-            val resp = http.newCall(request).execute()
-            val body = JSONObject(resp.body!!.string())
-            val deviceId = body.getString("device_id")
-            val qrToken = body.getString("qr_token")
+            // use{} 确保 response 被正确关闭
+            http.newCall(request).execute().use { resp ->
+                val bodyStr = resp.body?.string() ?: throw Exception("响应体为空")
+                val body = JSONObject(bodyStr)
+                val deviceId = body.getString("device_id")
+                val qrToken = body.getString("qr_token")
 
-            prefs.deviceId = deviceId
-            prefs.qrToken = qrToken
+                prefs.deviceId = deviceId
+                prefs.qrToken = qrToken
 
-            withContext(Dispatchers.Main) {
-                showQrCode(qrToken)
-                startPollingBind()
+                withContext(Dispatchers.Main) {
+                    showQrCode(qrToken)
+                    startPollingBind()
+                }
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {
@@ -100,13 +103,16 @@ class BindActivity : AppCompatActivity() {
                     val request = Request.Builder()
                         .url("$baseUrl/api/device/bind-status?device_id=$deviceId")
                         .build()
-                    val resp = http.newCall(request).execute()
-                    if (resp.isSuccessful) {
-                        val body = JSONObject(resp.body!!.string())
-                        if (body.optBoolean("bound", false)) {
-                            prefs.isBound = true
-                            goMain()
-                            break
+                    // use{} 确保 response 和 body 在读取后被正确关闭，防止连接泄漏
+                    http.newCall(request).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val bodyStr = resp.body?.string() ?: return@use
+                            val body = JSONObject(bodyStr)
+                            if (body.optBoolean("bound", false)) {
+                                prefs.isBound = true
+                                goMain()
+                                return@launch
+                            }
                         }
                     }
                 } catch (_: Exception) { /* 忽略网络错误，继续轮询 */ }

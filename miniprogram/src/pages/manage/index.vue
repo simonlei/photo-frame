@@ -69,7 +69,7 @@ function formatDate(str: string): string {
 
     <view v-else class="photo-grid">
       <view v-for="photo in photos" :key="photo.id" class="photo-item">
-        <image :src="photo.url" mode="aspectFill" class="photo-thumb" />
+        <image :src="photo.url" mode="aspectFill" class="photo-thumb" lazy-load />
         <view class="photo-info">
           <text class="photo-date">{{ formatDate(photo.taken_at || photo.uploaded_at) }}</text>
           <text class="photo-uploader">{{ photo.uploader_name || '未知' }}</text>

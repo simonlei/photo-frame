@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/simonlei/photo-frame/backend/models"
 	"gorm.io/driver/mysql"
@@ -19,8 +20,14 @@ func Init() (*gorm.DB, error) {
 		os.Getenv("DB_NAME"),
 	)
 
+	// 生产环境只记录 Warn 及以上，减少 I/O 开销
+	logLevel := logger.Info
+	if os.Getenv("APP_ENV") == "production" {
+		logLevel = logger.Warn
+	}
+
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logLevel),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("连接 MySQL 失败: %w", err)
@@ -32,15 +39,18 @@ func Init() (*gorm.DB, error) {
 	}
 	sqlDB.SetMaxOpenConns(20)
 	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(time.Hour) // 防止连接池中出现已被服务器关闭的僵尸连接
 
-	// 自动迁移
-	if err := db.AutoMigrate(
-		&models.Device{},
-		&models.User{},
-		&models.Photo{},
-		&models.Version{},
-	); err != nil {
-		return nil, fmt.Errorf("数据库迁移失败: %w", err)
+	// 开发环境才自动迁移，生产环境手动执行 SQL 迁移脚本
+	if os.Getenv("APP_ENV") != "production" {
+		if err := db.AutoMigrate(
+			&models.Device{},
+			&models.User{},
+			&models.Photo{},
+			&models.Version{},
+		); err != nil {
+			return nil, fmt.Errorf("数据库迁移失败: %w", err)
+		}
 	}
 
 	return db, nil
