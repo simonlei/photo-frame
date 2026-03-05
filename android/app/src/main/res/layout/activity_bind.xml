@@ -31,11 +31,4 @@
         android:textSize="16sp"
         android:layout_marginBottom="24dp" />
 
-    <Button
-        android:id="@+id/btn_skip"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="跳过，直接进入"
-        android:visibility="visible" />
-
 </LinearLayout>

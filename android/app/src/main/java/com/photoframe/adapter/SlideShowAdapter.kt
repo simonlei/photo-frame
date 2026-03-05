@@ -1,5 +1,7 @@
 package com.photoframe.adapter
 
+import android.graphics.drawable.Drawable
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,14 +10,21 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 import com.photoframe.R
 import com.photoframe.data.Photo
 
 class SlideShowAdapter(
-    private var photos: List<Photo>,
+    photos: List<Photo>,
     private var showInfo: Boolean
 ) : RecyclerView.Adapter<SlideShowAdapter.PhotoViewHolder>() {
+
+    // 必须持有独立副本，防止外部 MutableList 修改导致 DiffUtil 比较失效
+    private var photos: List<Photo> = photos.toList()
 
     inner class PhotoViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val imageView: ImageView = itemView.findViewById(R.id.iv_photo)
@@ -30,9 +39,28 @@ class SlideShowAdapter(
 
     override fun onBindViewHolder(holder: PhotoViewHolder, position: Int) {
         val photo = photos[position]
+        Log.d("SlideShowAdapter", "加载照片[$position] url=${photo.url}")
         Glide.with(holder.imageView)
             .load(photo.url)
             .transition(DrawableTransitionOptions.withCrossFade(600))
+            .listener(object : RequestListener<Drawable> {
+                override fun onLoadFailed(
+                    e: GlideException?, model: Any?,
+                    target: Target<Drawable>, isFirstResource: Boolean
+                ): Boolean {
+                    Log.e("SlideShowAdapter", "Glide 加载失败[$position] url=${photo.url}", e)
+                    return false
+                }
+
+                override fun onResourceReady(
+                    resource: Drawable, model: Any,
+                    target: Target<Drawable>?, dataSource: DataSource,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    Log.d("SlideShowAdapter", "Glide 加载成功[$position]")
+                    return false
+                }
+            })
             .error(android.R.color.black)
             .into(holder.imageView)
 

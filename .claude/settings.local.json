@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(\"D:/Soft/Android/jbr/bin/java\":*)"
+      "Bash(\"D:/Soft/Android/jbr/bin/java\":*)",
+      "Bash(curl:*)",
+      "Bash(cd /d/work/photo-frame && find backend -name \"*.go\" | xargs grep -l \"device_users\\\\|DeviceUser\" 2>/dev/null)",
+      "Bash(head:*)"
     ]
   }
 }

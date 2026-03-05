@@ -91,8 +91,10 @@ class MainActivity : AppCompatActivity() {
 
         // 同步服务
         syncService = PhotoSyncService(this) { newPhotos ->
+            android.util.Log.d("MainActivity", "收到 ${newPhotos.size} 张照片，当前已有 ${allPhotos.size} 张")
             val existingIds = allPhotos.map { it.id }.toSet()
             val fresh = newPhotos.filter { it.id !in existingIds }
+            android.util.Log.d("MainActivity", "去重后新增 ${fresh.size} 张")
             if (fresh.isNotEmpty()) {
                 if (prefs.playMode == "random") {
                     allPhotos.addAll(fresh)
@@ -100,6 +102,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     allPhotos.addAll(fresh)
                 }
+                android.util.Log.d("MainActivity", "更新 adapter，总计 ${allPhotos.size} 张")
                 adapter.updatePhotos(allPhotos.toList())
             }
         }

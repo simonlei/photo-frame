@@ -1,5 +1,6 @@
 package com.photoframe.data
 
+import android.util.Log
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -51,12 +52,11 @@ interface ApiService {
 // ---------- 单例工厂 ----------
 
 object ApiClient {
+    private const val TAG = "ApiClient"
     private var _service: ApiService? = null
 
-    /**
-     * 必须在首次访问 [service] 之前调用，建议在 Application.onCreate() 中调用。
-     */
     fun init(url: String, token: String?) {
+        Log.d(TAG, "init() token=${if (token != null) "present(${token.take(8)}...)" else "null"}")
         val baseUrl = if (url.endsWith("/")) url else "$url/"
         val client = OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
@@ -64,10 +64,12 @@ object ApiClient {
             })
             .addInterceptor { chain ->
                 val req = if (token != null) {
+                    Log.d(TAG, "attaching Authorization header to ${chain.request().url}")
                     chain.request().newBuilder()
                         .header("Authorization", "Bearer $token")
                         .build()
                 } else {
+                    Log.w(TAG, "no token — sending request without Authorization: ${chain.request().url}")
                     chain.request()
                 }
                 chain.proceed(req)

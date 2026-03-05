@@ -3,7 +3,6 @@ package com.photoframe
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -11,6 +10,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
+import android.util.Log
+import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
 import kotlinx.coroutines.*
 import okhttp3.*
@@ -26,7 +27,6 @@ class BindActivity : AppCompatActivity() {
     private lateinit var prefs: AppPrefs
     private lateinit var ivQr: ImageView
     private lateinit var tvHint: TextView
-    private lateinit var btnSkip: Button
 
     private val http = OkHttpClient()
     private var pollJob: Job? = null
@@ -36,8 +36,8 @@ class BindActivity : AppCompatActivity() {
 
         prefs = AppPrefs(this)
 
-        // 已绑定直接进主界面
-        if (prefs.isBound && prefs.deviceId != null) {
+        // 已绑定且 token 有效，直接进主界面
+        if (prefs.isBound && prefs.deviceId != null && prefs.userToken != null) {
             goMain()
             return
         }
@@ -45,9 +45,6 @@ class BindActivity : AppCompatActivity() {
         setContentView(R.layout.activity_bind)
         ivQr = findViewById(R.id.iv_qr)
         tvHint = findViewById(R.id.tv_hint)
-        btnSkip = findViewById(R.id.btn_skip)
-
-        btnSkip.setOnClickListener { goMain() }
 
         lifecycleScope.launch {
             registerDevice()
@@ -94,35 +91,48 @@ class BindActivity : AppCompatActivity() {
 
     /** 每 3 秒轮询一次，检查是否已有用户绑定 */
     private fun startPollingBind() {
-        pollJob = lifecycleScope.launch {
+        pollJob = lifecycleScope.launch(Dispatchers.IO) {
             val deviceId = prefs.deviceId ?: return@launch
             val baseUrl = getString(R.string.server_base_url)
             while (isActive) {
                 delay(3_000)
                 try {
+                    val url = "$baseUrl/api/device/bind-status?device_id=$deviceId"
+                    Log.d("BindActivity", "poll request -> GET $url")
                     val request = Request.Builder()
-                        .url("$baseUrl/api/device/bind-status?device_id=$deviceId")
+                        .url(url)
                         .build()
                     // use{} 确保 response 和 body 在读取后被正确关闭，防止连接泄漏
                     http.newCall(request).execute().use { resp ->
+                        val bodyStr = resp.body?.string()
+                        Log.d("BindActivity", "poll response <- ${resp.code} ${resp.message}, headers=${resp.headers}")
+                        Log.d("BindActivity", "poll response body: $bodyStr")
                         if (resp.isSuccessful) {
-                            val bodyStr = resp.body?.string() ?: return@use
+                            if (bodyStr.isNullOrEmpty()) return@use
                             val body = JSONObject(bodyStr)
-                            if (body.optBoolean("bound", false)) {
+                            val bound = body.optBoolean("bound", false)
+                            Log.d("BindActivity", "poll parsed: bound=$bound, device=$deviceId")
+                            if (bound) {
                                 prefs.isBound = true
-                                body.optString("user_token").takeIf { it.isNotEmpty() }
-                                    ?.let { prefs.userToken = it }
-                                goMain()
+                                val token = body.optString("user_token").takeIf { it.isNotEmpty() }
+                                Log.d("BindActivity", "bind-status: bound=true, user_token=${token?.take(8) ?: "null"}")
+                                token?.let { prefs.userToken = it }
+                                Log.d("BindActivity", "prefs.userToken after save=${prefs.userToken?.take(8) ?: "null"}")
+                                withContext(Dispatchers.Main) { goMain() }
                                 return@launch
                             }
                         }
                     }
-                } catch (_: Exception) { /* 忽略网络错误，继续轮询 */ }
+                } catch (e: Exception) {
+                    Log.w("BindActivity", "poll bind-status error: ${e.message}", e)
+                }
             }
         }
     }
 
     private fun goMain() {
+        Log.d("BindActivity", "goMain() reinit ApiClient with token=${prefs.userToken?.take(8) ?: "null"}")
+        ApiClient.init(getString(R.string.server_base_url), prefs.userToken)
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
