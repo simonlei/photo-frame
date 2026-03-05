@@ -101,3 +101,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.load-more {
+  text-align: center;
+  padding: 24rpx 0;
+}
+.load-more-text {
+  font-size: 24rpx;
+  color: #bbb;
+}

@@ -1,4 +1,4 @@
-const { request } = require('../../utils/api')
+const { fetchMyFrames, ERR_UNAUTHORIZED } = require('../../utils/api')
 
 Page({
   data: {
@@ -11,13 +11,13 @@ Page({
   },
 
   async _loadFrames() {
+    await getApp().ready  // 等待登录完成，避免首次冷启动竞态
     this.setData({ loading: true })
     try {
-      const app = getApp()
-      const data = await request({ url: `${app.globalData.baseUrl}/api/my/frames` })
-      this.setData({ frames: data.frames || [] })
+      const frames = await fetchMyFrames()
+      this.setData({ frames })
     } catch (e) {
-      if (e.message !== '未登录') {
+      if (e.code !== ERR_UNAUTHORIZED) {
         wx.showToast({ title: e.message || '加载失败', icon: 'none' })
       }
     } finally {

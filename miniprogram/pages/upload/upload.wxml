@@ -3,7 +3,7 @@
   <view class="choose-area" bindtap="onChoosePhoto">
     <text class="choose-icon">+</text>
     <text class="choose-text">选择照片</text>
-    <text class="choose-sub">最多可再选 {{9 - items.length}} 张</text>
+    <text class="choose-sub">最多可再选 {{items.length >= 9 ? 0 : 9 - items.length}} 张</text>
   </view>
 
   <!-- 照片列表 -->
@@ -16,7 +16,7 @@
         wx:if="{{item.status === 'pending'}}"
         class="remove-btn"
         bindtap="onRemoveItem"
-        data-idx="{{index}}"
+        data-id="{{item.id}}"
       >×</view>
 
       <!-- 上传进度遮罩 -->
@@ -32,7 +32,7 @@
       <!-- 失败遮罩 + 重试 -->
       <view wx:if="{{item.status === 'fail'}}" class="overlay overlay-fail">
         <text class="status-icon">✗</text>
-        <text class="retry-text" bindtap="onRetryItem" data-idx="{{index}}">重试</text>
+        <text class="retry-text" bindtap="onRetryItem" data-id="{{item.id}}">重试</text>
       </view>
     </view>
   </view>

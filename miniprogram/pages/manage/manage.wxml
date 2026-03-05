@@ -35,6 +35,11 @@
         <view class="delete-btn" bindtap="onTapDelete" data-photo="{{item}}">×</view>
         <view class="photo-date">{{item.uploaded_at}}</view>
       </view>
+      <!-- 加载更多 -->
+      <view class="load-more">
+        <text wx:if="{{loadingMore}}" class="load-more-text">加载中...</text>
+        <text wx:elif="{{!hasMore && photos.length > 0}}" class="load-more-text">已显示全部照片</text>
+      </view>
     </view>
   </block>
 

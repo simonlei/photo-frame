@@ -1,11 +1,14 @@
-const { request } = require('../../utils/api')
+const { fetchMyFrames, request, ERR_UNAUTHORIZED } = require('../../utils/api')
 
 Page({
   data: {
     frames: [],
     currentFrameIdx: 0,
     photos: [],
-    loading: false
+    loading: false,
+    loadingMore: false,
+    hasMore: true,
+    _currentDeviceId: ''
   },
 
   onShow() {
@@ -13,18 +16,23 @@ Page({
   },
 
   async _loadFrames() {
+    await getApp().ready  // 等待登录完成，避免首次冷启动竞态
+    this.setData({ loading: true, photos: [] })
     try {
-      const app = getApp()
-      const data = await request({ url: `${app.globalData.baseUrl}/api/my/frames` })
-      const frames = data.frames || []
-      this.setData({ frames, currentFrameIdx: 0 })
+      const frames = await fetchMyFrames()
+      this.setData({ frames })
+      // 保持 currentFrameIdx，避免切换 Tab 后丢失相框选择
+      const idx = this.data.currentFrameIdx < frames.length ? this.data.currentFrameIdx : 0
       if (frames.length > 0) {
-        this._loadPhotos(frames[0].id)
+        this.setData({ currentFrameIdx: idx })
+        this._loadPhotos(frames[idx].id)
       }
     } catch (e) {
-      if (e.message !== '未登录') {
+      if (e.code !== ERR_UNAUTHORIZED) {
         wx.showToast({ title: e.message || '加载失败', icon: 'none' })
       }
+    } finally {
+      this.setData({ loading: false })
     }
   },
 
@@ -35,21 +43,37 @@ Page({
     if (frame) this._loadPhotos(frame.id)
   },
 
-  async _loadPhotos(deviceId) {
-    this.setData({ loading: true, photos: [] })
+  async _loadPhotos(deviceId, append) {
+    if (!append) {
+      this.setData({ photos: [], hasMore: true, _currentDeviceId: deviceId })
+    }
+    this.setData({ loadingMore: true })
     try {
       const app = getApp()
+      const lastId = append && this.data.photos.length > 0
+        ? this.data.photos[this.data.photos.length - 1].id
+        : 0
       const data = await request({
         url: `${app.globalData.baseUrl}/api/photos`,
-        data: { device_id: deviceId }
+        data: { device_id: deviceId, since: lastId, limit: 30 }
       })
-      this.setData({ photos: data.photos || [] })
+      const newPhotos = data.photos || []
+      this.setData({
+        photos: append ? [...this.data.photos, ...newPhotos] : newPhotos,
+        hasMore: newPhotos.length === 30
+      })
     } catch (e) {
-      if (e.message !== '未登录') {
+      if (e.code !== ERR_UNAUTHORIZED) {
         wx.showToast({ title: e.message || '加载失败', icon: 'none' })
       }
     } finally {
-      this.setData({ loading: false })
+      this.setData({ loadingMore: false, loading: false })
+    }
+  },
+
+  onReachBottom() {
+    if (this.data.hasMore && !this.data.loadingMore && this.data._currentDeviceId) {
+      this._loadPhotos(this.data._currentDeviceId, true)
     }
   },
 

@@ -1,7 +1,7 @@
 ---
 title: "refactor: 小程序从 uni-app 迁移到原生微信小程序"
 type: refactor
-status: active
+status: completed
 date: 2026-03-04
 ---
 

@@ -13,24 +13,15 @@ Page({
       onlyFromCamera: false,
       success: async (res) => {
         const rawData = res.result || ''
-        // 解析 photoframe://bind?qr_token=xxx
+        // 解析 photoframe://bind?qr_token=xxx（正则，兼容所有基础库版本）
         let qrToken = ''
-        try {
-          if (rawData.startsWith('photoframe://bind')) {
-            const url = new URL(rawData.replace('photoframe://', 'https://dummy.com/'))
-            qrToken = url.searchParams.get('qr_token') || ''
-          }
-        } catch (e) {
-          // URL 解析失败，尝试直接取整个内容作为 token
+        if (rawData.startsWith('photoframe://bind')) {
+          const match = rawData.match(/[?&]qr_token=([^&]+)/)
+          qrToken = match ? decodeURIComponent(match[1]) : ''
         }
 
-        if (!qrToken) {
-          // 兼容：直接把扫码结果当 qr_token
-          qrToken = rawData.trim()
-        }
-
-        if (!qrToken) {
-          wx.showToast({ title: '无效的二维码', icon: 'none' })
+        if (!qrToken || !/^[A-Za-z0-9_-]{8,64}$/.test(qrToken)) {
+          wx.showToast({ title: '无效的相框二维码', icon: 'none' })
           this.setData({ scanning: false })
           return
         }
@@ -44,6 +35,9 @@ Page({
             data: { qr_token: qrToken }
           })
           wx.hideLoading()
+          // 清除相框列表缓存，确保首页刷新看到新绑定的相框
+          getApp().globalData.framesCache = null
+          this.setData({ scanning: false })
           wx.showToast({ title: '绑定成功', icon: 'success' })
           setTimeout(() => wx.navigateBack(), 1200)
         } catch (e) {

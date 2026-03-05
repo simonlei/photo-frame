@@ -1,3 +1,5 @@
+const ERR_UNAUTHORIZED = 'ERR_UNAUTHORIZED'
+
 /**
  * 统一 HTTP 请求封装
  * - 自动携带 Authorization 头
@@ -31,7 +33,9 @@ function request(options) {
           const app = getApp_()
           if (app) app.globalData.token = ''
           wx.showToast({ title: '登录已过期，请重新进入', icon: 'none' })
-          reject(new Error('未登录'))
+          const err = new Error('未登录')
+          err.code = ERR_UNAUTHORIZED
+          reject(err)
         } else {
           const msg = (res.data && res.data.error) || `请求失败 (${res.statusCode})`
           reject(new Error(msg))
@@ -60,4 +64,21 @@ function getFileSize(filePath) {
   })
 }
 
-module.exports = { request, authHeader, getFileSize }
+/**
+ * 获取当前用户绑定的相框列表（带 30s 内存缓存）
+ * @param {boolean} force 是否强制刷新缓存
+ * @returns {Promise<Array>}
+ */
+async function fetchMyFrames(force) {
+  const app = getApp()
+  const ttl = 30 * 1000
+  if (!force && app.globalData.framesCache && Date.now() - app.globalData.framesCacheTime < ttl) {
+    return app.globalData.framesCache
+  }
+  const data = await request({ url: `${app.globalData.baseUrl}/api/my/frames` })
+  app.globalData.framesCache = data.frames || []
+  app.globalData.framesCacheTime = Date.now()
+  return app.globalData.framesCache
+}
+
+module.exports = { request, authHeader, getFileSize, ERR_UNAUTHORIZED, fetchMyFrames }

@@ -2,14 +2,20 @@ const { getFileSize, authHeader } = require('../../utils/api')
 
 const CONCURRENCY = 3
 const COMPRESS_THRESHOLD = 2 * 1024 * 1024 // 2MB
+const MAX_PHOTOS = 9
 
 Page({
   data: {
     deviceId: '',
     frameName: '',
-    items: [],       // { tempFilePath, status: 'pending'|'uploading'|'done'|'fail', progress: 0, error: '' }
+    items: [],       // { id(tempFilePath), tempFilePath, compressedPath, status, progress, error }
     uploading: false
   },
+
+  // 维护活跃的 UploadTask 引用，用于 onUnload 时取消
+  _tasks: [],
+  // 进度节流计时器 Map，key 为 tempFilePath
+  _progressTimers: {},
 
   onLoad(options) {
     this.setData({
@@ -19,51 +25,77 @@ Page({
     wx.setNavigationBarTitle({ title: `上传到 ${this.data.frameName}` })
   },
 
+  onUnload() {
+    // 取消所有进行中的上传，防止内存泄漏和回调悬挂
+    this._tasks.forEach(t => { try { t.abort() } catch (e) {} })
+    this._tasks = []
+    // 清除所有节流计时器
+    Object.values(this._progressTimers).forEach(timer => clearTimeout(timer))
+    this._progressTimers = {}
+  },
+
   onChoosePhoto() {
+    const remaining = MAX_PHOTOS - this.data.items.length
+    if (remaining <= 0) {
+      wx.showToast({ title: '最多选择 9 张', icon: 'none' })
+      return
+    }
     wx.chooseMedia({
-      count: 9,
+      count: remaining,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
       success: (res) => {
         const newItems = res.tempFiles.map(f => ({
+          id: f.tempFilePath,
           tempFilePath: f.tempFilePath,
+          compressedPath: '',
           status: 'pending',
           progress: 0,
           error: ''
         }))
         this.setData({ items: [...this.data.items, ...newItems] })
+      },
+      fail: (err) => {
+        if (err.errMsg && err.errMsg.includes('auth deny')) {
+          wx.showModal({
+            title: '需要相册权限',
+            content: '请在设置中允许访问相册和摄像头',
+            confirmText: '去设置',
+            success: (r) => { if (r.confirm) wx.openSetting() }
+          })
+        }
+        // 用户主动取消不提示
       }
     })
   },
 
   onRemoveItem(e) {
-    const idx = e.currentTarget.dataset.idx
-    const items = [...this.data.items]
-    items.splice(idx, 1)
+    if (this.data.uploading) return  // 上传中禁止删除，防止下标偏移
+    const itemId = e.currentTarget.dataset.id
+    const items = this.data.items.filter(it => it.id !== itemId)
     this.setData({ items })
   },
 
   onRetryItem(e) {
-    const idx = e.currentTarget.dataset.idx
-    this._uploadOne(idx)
+    if (this.data.uploading) return  // 批量上传中禁止单独重试
+    const itemId = e.currentTarget.dataset.id
+    const item = this.data.items.find(it => it.id === itemId)
+    if (item) this._uploadOne(item)
   },
 
   async onStartUpload() {
-    const pendingIndexes = this.data.items
-      .map((item, idx) => ({ item, idx }))
-      .filter(({ item }) => item.status === 'pending' || item.status === 'fail')
-      .map(({ idx }) => idx)
-
-    if (pendingIndexes.length === 0) {
+    const pendingItems = this.data.items.filter(
+      it => it.status === 'pending' || it.status === 'fail'
+    )
+    if (pendingItems.length === 0) {
       wx.showToast({ title: '没有待上传的照片', icon: 'none' })
       return
     }
 
     this.setData({ uploading: true })
-    // 分批并发上传
-    for (let i = 0; i < pendingIndexes.length; i += CONCURRENCY) {
-      const batch = pendingIndexes.slice(i, i + CONCURRENCY)
-      await Promise.all(batch.map(idx => this._uploadOne(idx)))
+    for (let i = 0; i < pendingItems.length; i += CONCURRENCY) {
+      const batch = pendingItems.slice(i, i + CONCURRENCY)
+      await Promise.all(batch.map(item => this._uploadOne(item)))
     }
     this.setData({ uploading: false })
 
@@ -76,60 +108,80 @@ Page({
     }
   },
 
-  async _uploadOne(idx) {
-    let item = this.data.items[idx]
-    if (!item) return
+  async _uploadOne(item) {
+    if (!item || !this.data) return
+    this._updateItem(item.id, { status: 'uploading', progress: 0, error: '' })
 
-    this._updateItem(idx, { status: 'uploading', progress: 0, error: '' })
-
-    let filePath = item.tempFilePath
-    try {
-      // 压缩大图
-      const size = await getFileSize(filePath)
-      if (size > COMPRESS_THRESHOLD) {
-        const res = await new Promise((resolve, reject) =>
-          wx.compressImage({ src: filePath, quality: 80, success: resolve, fail: reject })
-        )
-        filePath = res.tempFilePath
+    // 压缩：使用缓存的压缩路径，避免重试时重复压缩
+    let uploadPath = item.compressedPath || item.tempFilePath
+    if (!item.compressedPath) {
+      try {
+        const size = await getFileSize(item.tempFilePath)
+        if (size > COMPRESS_THRESHOLD) {
+          const res = await new Promise((resolve, reject) =>
+            wx.compressImage({ src: item.tempFilePath, quality: 80, success: resolve, fail: reject })
+          )
+          uploadPath = res.tempFilePath
+          this._updateItem(item.id, { compressedPath: uploadPath })  // 缓存压缩结果
+        }
+      } catch (e) {
+        // 压缩失败时继续用原图
       }
-    } catch (e) {
-      // 压缩失败时继续用原图
     }
 
     return new Promise((resolve) => {
+      if (!this.data) { resolve(); return }
       const app = getApp()
       const task = wx.uploadFile({
         url: `${app.globalData.baseUrl}/api/upload`,
-        filePath,
+        filePath: uploadPath,
         name: 'file',
         formData: { device_id: this.data.deviceId },
         header: authHeader(),
         success: (res) => {
+          if (!this.data) { resolve(); return }
           if (res.statusCode === 200) {
-            this._updateItem(idx, { status: 'done', progress: 100 })
+            this._updateItem(item.id, { status: 'done', progress: 100 })
           } else {
             let errMsg = '上传失败'
             try { errMsg = JSON.parse(res.data).error || errMsg } catch (e) {}
-            this._updateItem(idx, { status: 'fail', error: errMsg })
+            this._updateItem(item.id, { status: 'fail', error: errMsg })
           }
+          this._tasks = this._tasks.filter(t => t !== task)
           resolve()
         },
         fail: (err) => {
-          this._updateItem(idx, { status: 'fail', error: err.errMsg || '上传失败' })
+          if (!this.data) { resolve(); return }
+          this._updateItem(item.id, { status: 'fail', error: err.errMsg || '上传失败' })
+          this._tasks = this._tasks.filter(t => t !== task)
           resolve()
         }
       })
+      this._tasks.push(task)
+
+      // 节流进度更新：同一张图 300ms 内最多更新一次，使用路径语法减少 setData 开销
       task.onProgressUpdate(({ progress }) => {
-        this._updateItem(idx, { progress })
+        if (!this.data) return
+        const key = item.id
+        if (this._progressTimers[key]) return
+        this._progressTimers[key] = setTimeout(() => {
+          delete this._progressTimers[key]
+          if (!this.data) return
+          const idx = this.data.items.findIndex(it => it.id === key)
+          if (idx >= 0) {
+            this.setData({ [`items[${idx}].progress`]: progress })
+          }
+        }, 300)
       })
     })
   },
 
-  _updateItem(idx, patch) {
-    const items = [...this.data.items]
-    if (items[idx]) {
-      items[idx] = Object.assign({}, items[idx], patch)
-      this.setData({ items })
-    }
+  // 用 id（tempFilePath）作为稳定 key，避免数组下标偏移问题
+  _updateItem(itemId, patch) {
+    if (!this.data) return
+    const items = this.data.items.map(it =>
+      it.id === itemId ? Object.assign({}, it, patch) : it
+    )
+    this.setData({ items })
   }
 })
