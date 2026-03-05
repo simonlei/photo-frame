@@ -1,0 +1,10 @@
+<view class="container">
+  <view class="info-wrap">
+    <text class="info-icon">📷</text>
+    <text class="info-title">扫码绑定相框</text>
+    <text class="info-desc">请扫描相框屏幕上显示的二维码完成绑定，绑定后即可向该相框上传照片。</text>
+  </view>
+  <button class="btn-primary scan-btn" bindtap="onTapScan" disabled="{{scanning}}">
+    {{scanning ? '扫码中...' : '扫描二维码'}}
+  </button>
+</view>

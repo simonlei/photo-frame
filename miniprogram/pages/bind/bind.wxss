@@ -1,0 +1,39 @@
+.info-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80rpx 24rpx 60rpx;
+}
+
+.info-icon {
+  font-size: 100rpx;
+  margin-bottom: 24rpx;
+}
+
+.info-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 20rpx;
+}
+
+.info-desc {
+  font-size: 26rpx;
+  color: #888;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.scan-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background-color: #1976D2;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+}
+
+.scan-btn[disabled] {
+  background-color: #90caf9;
+}

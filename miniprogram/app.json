@@ -1,0 +1,30 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/upload/upload",
+    "pages/bind/bind",
+    "pages/manage/manage"
+  ],
+  "tabBar": {
+    "color": "#666666",
+    "selectedColor": "#1976D2",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "相框"
+      },
+      {
+        "pagePath": "pages/manage/manage",
+        "text": "管理"
+      }
+    ]
+  },
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTitleText": "家庭相框",
+    "navigationBarTextStyle": "black"
+  },
+  "sitemapLocation": "sitemap.json"
+}

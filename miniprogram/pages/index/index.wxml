@@ -1,0 +1,36 @@
+<view class="container">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-wrap">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 空状态 -->
+  <view wx:elif="{{frames.length === 0}}" class="empty-wrap">
+    <text class="empty-icon">🖼️</text>
+    <text class="empty-text">还没有绑定相框</text>
+    <text class="empty-sub">扫描相框上的二维码完成绑定</text>
+    <button class="btn-primary bind-btn" bindtap="onTapBind">扫码绑定相框</button>
+  </view>
+
+  <!-- 相框列表 -->
+  <block wx:else>
+    <view class="section-title">我的相框</view>
+    <view class="frame-list">
+      <view
+        wx:for="{{frames}}"
+        wx:key="id"
+        class="frame-card"
+        bindtap="onTapFrame"
+        data-frame="{{item}}"
+      >
+        <view class="frame-icon">🖼️</view>
+        <view class="frame-info">
+          <text class="frame-name">{{item.name}}</text>
+          <text class="frame-id">ID: {{item.id}}</text>
+        </view>
+        <view class="frame-arrow">›</view>
+      </view>
+    </view>
+    <button class="btn-primary bind-btn" bindtap="onTapBind">绑定新相框</button>
+  </block>
+</view>

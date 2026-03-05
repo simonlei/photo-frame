@@ -1,0 +1,49 @@
+<view class="container">
+  <!-- 选择照片区域 -->
+  <view class="choose-area" bindtap="onChoosePhoto">
+    <text class="choose-icon">+</text>
+    <text class="choose-text">选择照片</text>
+    <text class="choose-sub">最多可再选 {{9 - items.length}} 张</text>
+  </view>
+
+  <!-- 照片列表 -->
+  <view wx:if="{{items.length > 0}}" class="photo-list">
+    <view wx:for="{{items}}" wx:key="index" class="photo-item">
+      <image class="photo-thumb" src="{{item.tempFilePath}}" mode="aspectFill" />
+
+      <!-- 删除按钮（未上传时显示） -->
+      <view
+        wx:if="{{item.status === 'pending'}}"
+        class="remove-btn"
+        bindtap="onRemoveItem"
+        data-idx="{{index}}"
+      >×</view>
+
+      <!-- 上传进度遮罩 -->
+      <view wx:if="{{item.status === 'uploading'}}" class="overlay">
+        <text class="progress-text">{{item.progress}}%</text>
+      </view>
+
+      <!-- 成功标记 -->
+      <view wx:if="{{item.status === 'done'}}" class="overlay overlay-done">
+        <text class="status-icon">✓</text>
+      </view>
+
+      <!-- 失败遮罩 + 重试 -->
+      <view wx:if="{{item.status === 'fail'}}" class="overlay overlay-fail">
+        <text class="status-icon">✗</text>
+        <text class="retry-text" bindtap="onRetryItem" data-idx="{{index}}">重试</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 上传按钮 -->
+  <button
+    wx:if="{{items.length > 0}}"
+    class="btn-primary upload-btn"
+    bindtap="onStartUpload"
+    disabled="{{uploading}}"
+  >
+    {{uploading ? '上传中...' : '开始上传'}}
+  </button>
+</view>

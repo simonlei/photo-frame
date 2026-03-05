@@ -1,0 +1,47 @@
+<view class="container">
+  <!-- 相框切换（多相框时显示） -->
+  <view wx:if="{{frames.length > 1}}" class="frame-picker-wrap">
+    <text class="picker-label">当前相框：</text>
+    <picker
+      mode="selector"
+      range="{{frames}}"
+      range-key="name"
+      value="{{currentFrameIdx}}"
+      bindchange="onFrameChange"
+    >
+      <view class="picker-value">
+        {{frames[currentFrameIdx].name}} <text class="picker-arrow">▾</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-wrap">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 无相框 -->
+  <view wx:elif="{{frames.length === 0}}" class="empty-wrap">
+    <text class="empty-icon">🖼️</text>
+    <text class="empty-text">还没有绑定相框</text>
+    <text class="empty-sub">到"相框"页扫码绑定后即可管理照片</text>
+  </view>
+
+  <!-- 照片网格 -->
+  <block wx:elif="{{photos.length > 0}}">
+    <view class="photo-grid">
+      <view wx:for="{{photos}}" wx:key="id" class="photo-cell">
+        <image class="photo-img" src="{{item.url}}" mode="aspectFill" lazy-load />
+        <view class="delete-btn" bindtap="onTapDelete" data-photo="{{item}}">×</view>
+        <view class="photo-date">{{item.uploaded_at}}</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 相框为空 -->
+  <view wx:else class="empty-wrap">
+    <text class="empty-icon">📷</text>
+    <text class="empty-text">还没有照片</text>
+    <text class="empty-sub">到"相框"页选择相框并上传</text>
+  </view>
+</view>

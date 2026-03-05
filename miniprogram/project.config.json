@@ -1,0 +1,14 @@
+{
+  "description": "家庭相框微信小程序",
+  "projectname": "photo-frame",
+  "appid": "your_wx_appid_here",
+  "compileType": "miniprogram",
+  "libVersion": "3.7.12",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  }
+}

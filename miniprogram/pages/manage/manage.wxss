@@ -1,0 +1,103 @@
+.frame-picker-wrap {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.picker-label {
+  font-size: 26rpx;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.picker-value {
+  font-size: 28rpx;
+  color: #1976D2;
+  font-weight: 600;
+}
+
+.picker-arrow {
+  font-size: 22rpx;
+}
+
+.loading-wrap,
+.empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 120rpx;
+}
+
+.loading-text {
+  color: #999;
+  font-size: 28rpx;
+}
+
+.empty-icon {
+  font-size: 100rpx;
+  margin-bottom: 24rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #333;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.empty-sub {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6rpx;
+}
+
+.photo-cell {
+  position: relative;
+  width: calc((100% - 12rpx) / 3);
+  aspect-ratio: 1;
+  border-radius: 6rpx;
+  overflow: hidden;
+  background: #eee;
+}
+
+.photo-img {
+  width: 100%;
+  height: 100%;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44rpx;
+  height: 44rpx;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  text-align: center;
+  line-height: 44rpx;
+  font-size: 36rpx;
+  border-bottom-left-radius: 6rpx;
+}
+
+.photo-date {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.4);
+  color: #fff;
+  font-size: 18rpx;
+  padding: 4rpx 6rpx;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
