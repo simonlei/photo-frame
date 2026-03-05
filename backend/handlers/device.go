@@ -60,7 +60,7 @@ func Bind(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// DeviceBindStatus 相框 App 轮询：查询是否已有用户绑定
+// DeviceBindStatus 相框 App 轮询：查询是否已有用户绑定，绑定后返回 user_token 供设备调用受保护接口
 func DeviceBindStatus(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Query("device_id")
@@ -73,8 +73,15 @@ func DeviceBindStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"bound": false})
 			return
 		}
-		count := db.Model(&device).Association("Users").Count()
-		c.JSON(http.StatusOK, gin.H{"bound": count > 0})
+		var users []models.User
+		if err := db.Model(&device).Association("Users").Find(&users); err != nil || len(users) == 0 {
+			c.JSON(http.StatusOK, gin.H{"bound": false})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"bound":      true,
+			"user_token": users[0].Token,
+		})
 	}
 }
 

@@ -15,6 +15,7 @@ class PhotoFrameApplication : Application() {
         // 必须在 Application.onCreate() 中初始化，保证所有 Activity/Service/Receiver
         // 访问 ApiClient.service 时已完成 Retrofit 构建，避免 lazy 初始化竞态问题
         val serverUrl = getString(R.string.server_base_url)
-        ApiClient.init(serverUrl)
+        val token = AppPrefs(this).userToken
+        ApiClient.init(serverUrl, token)
     }
 }

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(\"D:/Soft/Android/jbr/bin/java\":*)"
+    ]
+  }
+}

@@ -12,6 +12,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="家庭相框"
         android:theme="@style/Theme.PhotoFrame"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true">
 
         <activity

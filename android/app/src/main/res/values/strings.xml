@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">家庭相框</string>
     <!-- 开发时填 http://10.0.2.2:8080，生产时填 https://your-domain.com -->
-    <string name="server_base_url">https://your-server.com</string>
+    <string name="server_base_url">http://10.0.2.2:8080</string>
 </resources>

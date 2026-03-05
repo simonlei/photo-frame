@@ -110,6 +110,8 @@ class BindActivity : AppCompatActivity() {
                             val body = JSONObject(bodyStr)
                             if (body.optBoolean("bound", false)) {
                                 prefs.isBound = true
+                                body.optString("user_token").takeIf { it.isNotEmpty() }
+                                    ?.let { prefs.userToken = it }
                                 goMain()
                                 return@launch
                             }

@@ -56,12 +56,22 @@ object ApiClient {
     /**
      * 必须在首次访问 [service] 之前调用，建议在 Application.onCreate() 中调用。
      */
-    fun init(url: String) {
+    fun init(url: String, token: String?) {
         val baseUrl = if (url.endsWith("/")) url else "$url/"
         val client = OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
             })
+            .addInterceptor { chain ->
+                val req = if (token != null) {
+                    chain.request().newBuilder()
+                        .header("Authorization", "Bearer $token")
+                        .build()
+                } else {
+                    chain.request()
+                }
+                chain.proceed(req)
+            }
             .build()
         _service = Retrofit.Builder()
             .baseUrl(baseUrl)

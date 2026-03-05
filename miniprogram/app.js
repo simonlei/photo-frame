@@ -1,4 +1,4 @@
-const BASE_URL = 'https://your-server.com' // 部署前替换为真实域名
+const BASE_URL = 'http://localhost:8080' // 部署前替换为真实域名
 
 App({
   globalData: {

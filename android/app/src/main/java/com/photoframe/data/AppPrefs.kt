@@ -60,6 +60,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getInt("night_end_minute", 0)
         set(v) = prefs.edit().putInt("night_end_minute", v).apply()
 
+    var userToken: String?
+        get() = prefs.getString("user_token", null)
+        set(v) = prefs.edit().putString("user_token", v).apply()
+
     // 上次同步时间（ISO 8601，用于增量拉取）
     var lastSyncTime: String?
         get() = prefs.getString("last_sync_time", null)

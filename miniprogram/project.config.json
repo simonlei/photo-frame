@@ -1,7 +1,7 @@
 {
   "description": "家庭相框微信小程序",
   "projectname": "photo-frame",
-  "appid": "your_wx_appid_here",
+  "appid": "wx3692f9e3696cc8ee",
   "compileType": "miniprogram",
   "libVersion": "3.7.12",
   "setting": {
