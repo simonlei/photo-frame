@@ -1,0 +1,84 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # 触发条件：推送 v1.0.0 格式的 tag
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # 从 tag 提取版本号（去掉前缀 v）
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"           # e.g. v1.2.3
+          VERSION="${TAG#v}"                  # e.g. 1.2.3
+          # versionCode 用 tag 的三段数字拼接，如 1.2.3 → 10203
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      # 将版本号写入 build.gradle（覆盖硬编码值）
+      - name: Set version in build.gradle
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ steps.version.outputs.version_code }}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${{ steps.version.outputs.version }}\"/" android/app/build.gradle
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      # 上传 APK 到 GitHub Release
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+          name: "v${{ steps.version.outputs.version }}"
+          generate_release_notes: true
+
+      # 计算 SHA-256
+      - name: Compute SHA-256
+        id: sha256
+        run: |
+          HASH=$(sha256sum android/app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      # 将新版本写入生产数据库
+      - name: Register version in database
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          APK_BASE_URL: ${{ secrets.APK_BASE_URL }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          HASH="${{ steps.sha256.outputs.hash }}"
+          APK_URL="${APK_BASE_URL}/v${VERSION}/app-release.apk"
+          TAG_NAME="${GITHUB_REF_NAME}"
+          # 从 Release notes 获取 changelog（取 tag message）
+          CHANGELOG=$(git tag -l --format='%(contents)' "$TAG_NAME" | head -20)
+
+          mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" <<SQL
+            INSERT INTO versions (version, apk_url, apk_sha256, changelog, created_at)
+            VALUES ('${VERSION}', '${APK_URL}', '${HASH}', '${CHANGELOG}', NOW());
+          SQL

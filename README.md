@@ -34,6 +34,58 @@ cd backend && go run .
 docker-compose up -d
 ```
 
+## Android App 发布
+
+### 修改版本号
+
+编辑 `android/app/build.gradle`：
+
+```groovy
+defaultConfig {
+    versionCode 2        // 每次发布必须递增（整数）
+    versionName "1.1.0"  // 显示给用户的版本号
+}
+```
+
+两个字段都要更新：`versionCode` 每次 +1，`versionName` 按语义化版本（major.minor.patch）递增。
+
+### 构建 APK
+
+```bash
+cd android
+./gradlew assembleRelease
+# 输出：android/app/build/outputs/apk/release/app-release.apk
+```
+
+### 发布更新（自动，推荐）
+
+推送 release tag 即可触发 GitHub Actions 自动完成构建和发布：
+
+```bash
+git tag v1.1.0 -m "修复了若干问题"
+git push origin v1.1.0
+```
+
+Action 会自动：
+1. 将 tag 版本号写入 `build.gradle`
+2. 构建 release APK
+3. 上传到 GitHub Release 附件
+4. 计算 SHA-256
+5. 将版本信息写入生产数据库（`versions` 表）
+
+**首次使用需在 GitHub 仓库 Settings → Secrets 中配置：**
+
+| Secret | 说明 |
+|--------|------|
+| `DB_HOST` | 生产数据库主机 |
+| `DB_PORT` | 数据库端口（默认 3306）|
+| `DB_NAME` | 数据库名 |
+| `DB_USER` | 数据库用户名 |
+| `DB_PASSWORD` | 数据库密码 |
+| `APK_BASE_URL` | APK 下载基础 URL，如 `https://github.com/<user>/photo-frame/releases/download` |
+
+相框 App 下次启动时会自动检测新版本并弹窗提示升级；用户也可在设置页手动点击「检查更新」。
+
 ## API 概览
 
 | 接口 | 方法 | 说明 |
