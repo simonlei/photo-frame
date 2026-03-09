@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val allPhotos = mutableListOf<Photo>()
     private var isNightMode = false
+    private lateinit var gestureDetector: GestureDetector
 
     private val autoSlideRunnable = object : Runnable {
         override fun run() {
@@ -70,8 +71,8 @@ class MainActivity : AppCompatActivity() {
         viewPager.adapter = adapter
         applyTransitionEffect()
 
-        // 点击屏幕进入设置
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        // 点击屏幕进入设置（在 Activity 层拦截，避免 ViewPager2 消费触摸事件）
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 // 先恢复亮度（夜间模式下触摸唤醒）
                 if (isNightMode) {
@@ -84,10 +85,6 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         })
-        viewPager.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false
-        }
 
         // 同步服务
         syncService = PhotoSyncService(this) { newPhotos ->
@@ -138,6 +135,11 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         syncService.destroy()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun applyTransitionEffect() {
