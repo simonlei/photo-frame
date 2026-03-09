@@ -75,14 +75,14 @@ Action 会自动：
 
 **首次使用需在 GitHub 仓库 Settings → Secrets 中配置：**
 
-| Secret | 说明 |
-|--------|------|
-| `DB_HOST` | 生产数据库主机 |
-| `DB_PORT` | 数据库端口（默认 3306）|
-| `DB_NAME` | 数据库名 |
-| `DB_USER` | 数据库用户名 |
-| `DB_PASSWORD` | 数据库密码 |
-| `APK_BASE_URL` | APK 下载基础 URL，如 `https://github.com/<user>/photo-frame/releases/download` |
+| Secret | 默认值 | 说明 |
+|--------|--------|------|
+| `DB_HOST` | `127.0.0.1` | 生产数据库主机 |
+| `DB_PORT` | `3306` | 数据库端口 |
+| `DB_NAME` | `photoframe` | 数据库名 |
+| `DB_USER` | `photoframe` | 数据库用户名 |
+| `DB_PASSWORD` | 必填 | 数据库密码 |
+| `APK_BASE_URL` | 必填 | APK 下载基础 URL，如 `https://github.com/<user>/photo-frame/releases/download` |
 
 相框 App 下次启动时会自动检测新版本并弹窗提示升级；用户也可在设置页手动点击「检查更新」。
 
