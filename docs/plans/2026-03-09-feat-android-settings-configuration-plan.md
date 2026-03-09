@@ -1,7 +1,7 @@
 ---
 title: "feat: Android 端补全配置能力"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 ---
 
@@ -163,25 +163,25 @@ interface NightModeListener {
 
 ### 功能 A（设置页补全）
 
-- [ ] `SettingsActivity` 显示当前 App 版本号（格式：`v1.0.0`）
-- [ ] 点击"检查更新"按钮触发 `AutoUpdater.checkAndUpdate()`，有加载反馈
-- [ ] `SettingsActivity` 顶部有可编辑的"服务器地址"输入框，回显当前地址
+- [x] `SettingsActivity` 显示当前 App 版本号（格式：`v1.0.0`）
+- [x] 点击"检查更新"按钮触发 `AutoUpdater.checkAndUpdate()`，有加载反馈
+- [x] `SettingsActivity` 顶部有可编辑的"服务器地址"输入框，回显当前地址
 
 ### 功能 B（运行时服务器地址）
 
-- [ ] 修改服务器地址并保存后，App 重新执行设备注册/绑定流程
-- [ ] 服务器地址格式非法时，显示错误提示，不保存
-- [ ] App 重启后，服务器地址从 `AppPrefs` 读取，不再依赖硬编码值
+- [x] 修改服务器地址并保存后，App 重新执行设备注册/绑定流程
+- [x] 服务器地址格式非法时，显示错误提示，不保存
+- [x] App 重启后，服务器地址从 `AppPrefs` 读取，不再依赖硬编码值
 
 ### 功能 C（Token 过期处理）
 
-- [ ] 后端返回 401 时，App 清除 Token 并自动跳转到 `BindActivity`
-- [ ] `BindActivity` 显示"登录已过期，请重新绑定"提示文字
+- [x] 后端返回 401 时，App 清除 Token 并自动跳转到 `BindActivity`
+- [x] `BindActivity` 显示"登录已过期，请重新绑定"提示文字
 
 ### 功能 D（夜间模式状态同步）
 
-- [ ] `ScreenScheduler` 调整亮度时，`MainActivity.isNightMode` 同步更新
-- [ ] 夜间模式下触摸屏幕，亮度恢复逻辑正常工作
+- [x] `ScreenScheduler` 调整亮度时，`MainActivity.isNightMode` 同步更新
+- [x] 夜间模式下触摸屏幕，亮度恢复逻辑正常工作
 
 ---
 

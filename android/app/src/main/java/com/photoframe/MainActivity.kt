@@ -20,6 +20,7 @@ import com.photoframe.data.Photo
 import com.photoframe.service.PhotoSyncService
 import com.photoframe.service.ScreenScheduler
 import com.photoframe.updater.AutoUpdater
+import java.lang.ref.WeakReference
 
 class MainActivity : AppCompatActivity() {
 
@@ -106,6 +107,21 @@ class MainActivity : AppCompatActivity() {
 
         // 定时黑屏
         screenScheduler = ScreenScheduler(this)
+        screenScheduler.nightModeListener = WeakReference { isNight ->
+            isNightMode = isNight
+        }
+
+        // 注册 401 回调：Token 过期时清除绑定状态并跳转重新绑定
+        ApiClient.onUnauthorized = {
+            runOnUiThread {
+                prefs.isBound = false
+                prefs.userToken = null
+                startActivity(Intent(this, BindActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    putExtra("reason", "expired")
+                })
+            }
+        }
 
         // 自动更新
         autoUpdater = AutoUpdater(this)

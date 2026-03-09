@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 /**
  * 应用配置持久化（SharedPreferences 封装）
  */
-class AppPrefs(context: Context) {
+class AppPrefs(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("photo_frame_prefs", Context.MODE_PRIVATE)
 
@@ -68,4 +68,10 @@ class AppPrefs(context: Context) {
     var lastSyncTime: String?
         get() = prefs.getString("last_sync_time", null)
         set(v) = prefs.edit().putString("last_sync_time", v).apply()
+
+    // 服务器地址（默认回退到 strings.xml 硬编码值）
+    var serverBaseUrl: String
+        get() = prefs.getString("server_base_url", null)
+            ?: context.getString(com.photoframe.R.string.server_base_url)
+        set(v) = prefs.edit().putString("server_base_url", v).apply()
 }

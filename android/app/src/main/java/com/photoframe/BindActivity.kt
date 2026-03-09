@@ -46,6 +46,11 @@ class BindActivity : AppCompatActivity() {
         ivQr = findViewById(R.id.iv_qr)
         tvHint = findViewById(R.id.tv_hint)
 
+        // 若因 Token 过期被跳转，先提示用户
+        if (intent.getStringExtra("reason") == "expired") {
+            Toast.makeText(this, "登录已过期，请重新绑定相框", Toast.LENGTH_LONG).show()
+        }
+
         lifecycleScope.launch {
             registerDevice()
         }
@@ -53,7 +58,7 @@ class BindActivity : AppCompatActivity() {
 
     private suspend fun registerDevice() = withContext(Dispatchers.IO) {
         try {
-            val baseUrl = getString(R.string.server_base_url)
+            val baseUrl = AppPrefs(this@BindActivity).serverBaseUrl
             val request = Request.Builder()
                 .url("$baseUrl/api/device/register")
                 .post("{}".toRequestBody("application/json".toMediaType()))
@@ -93,7 +98,7 @@ class BindActivity : AppCompatActivity() {
     private fun startPollingBind() {
         pollJob = lifecycleScope.launch(Dispatchers.IO) {
             val deviceId = prefs.deviceId ?: return@launch
-            val baseUrl = getString(R.string.server_base_url)
+            val baseUrl = AppPrefs(this@BindActivity).serverBaseUrl
             while (isActive) {
                 delay(3_000)
                 try {
@@ -132,7 +137,7 @@ class BindActivity : AppCompatActivity() {
 
     private fun goMain() {
         Log.d("BindActivity", "goMain() reinit ApiClient with token=${prefs.userToken?.take(8) ?: "null"}")
-        ApiClient.init(getString(R.string.server_base_url), prefs.userToken)
+        ApiClient.init(prefs.serverBaseUrl, prefs.userToken)
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }

@@ -1,9 +1,12 @@
 package com.photoframe
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
+import com.photoframe.updater.AutoUpdater
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -13,6 +16,15 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = AppPrefs(this)
         setContentView(R.layout.activity_settings)
+
+        // 服务器地址
+        val etServerUrl = findViewById<EditText>(R.id.et_server_url)
+        etServerUrl.setText(prefs.serverBaseUrl)
+
+        val defaultUrl = getString(R.string.server_base_url)
+        findViewById<Button>(R.id.btn_reset_url).setOnClickListener {
+            etServerUrl.setText(defaultUrl)
+        }
 
         // 展示时长
         val etDuration = findViewById<EditText>(R.id.et_duration)
@@ -57,12 +69,20 @@ class SettingsActivity : AppCompatActivity() {
         tpNightEnd.hour = prefs.nightModeEndHour
         tpNightEnd.minute = prefs.nightModeEndMinute
 
-        // 相框 ID（只读）
+        // 相框 ID
         val tvDeviceId = findViewById<TextView>(R.id.tv_device_id)
         tvDeviceId.text = "相框 ID: ${prefs.deviceId ?: "未注册"}"
 
         // 保存
         findViewById<Button>(R.id.btn_save).setOnClickListener {
+            val newUrl = etServerUrl.text.toString().trim()
+            if (newUrl.isEmpty() || (!newUrl.startsWith("http://") && !newUrl.startsWith("https://"))) {
+                Toast.makeText(this, "服务器地址格式不正确，请以 http:// 或 https:// 开头", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val urlChanged = newUrl != prefs.serverBaseUrl
+
             prefs.slideDurationSec = etDuration.text.toString().toIntOrNull()?.coerceIn(5, 300) ?: 15
             prefs.playMode = if (rgPlayMode.checkedRadioButtonId == R.id.rb_random) "random" else "sequential"
             prefs.transitionEffect = effects[spinnerEffect.selectedItemPosition]
@@ -73,8 +93,38 @@ class SettingsActivity : AppCompatActivity() {
             prefs.nightModeEndHour = tpNightEnd.hour
             prefs.nightModeEndMinute = tpNightEnd.minute
 
-            Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
-            finish()
+            if (urlChanged) {
+                // 服务器地址变更：清除绑定状态，重新初始化 ApiClient，跳转重新绑定
+                prefs.serverBaseUrl = newUrl
+                prefs.isBound = false
+                prefs.userToken = null
+                prefs.deviceId = null
+                prefs.lastSyncTime = null
+                ApiClient.reinit(newUrl, null)
+                Toast.makeText(this, "服务器地址已更新，请重新绑定相框", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, BindActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                })
+            } else {
+                Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+
+        // 版本号
+        val tvVersion = findViewById<TextView>(R.id.tv_version)
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName
+        tvVersion.text = "版本 v$versionName"
+
+        // 检查更新
+        findViewById<Button>(R.id.btn_check_update).setOnClickListener { btn ->
+            btn.isEnabled = false
+            (btn as Button).text = "检查中..."
+            AutoUpdater(this).checkAndUpdate(versionName) {
+                btn.isEnabled = true
+                btn.text = "检查更新"
+                Toast.makeText(this, "已是最新版本", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

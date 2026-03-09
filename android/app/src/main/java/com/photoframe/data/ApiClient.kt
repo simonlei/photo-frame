@@ -55,8 +55,22 @@ object ApiClient {
     private const val TAG = "ApiClient"
     private var _service: ApiService? = null
 
+    /** 收到 401 时的回调，由 MainActivity 注册，用于触发重新绑定流程 */
+    var onUnauthorized: (() -> Unit)? = null
+
     fun init(url: String, token: String?) {
         Log.d(TAG, "init() token=${if (token != null) "present(${token.take(8)}...)" else "null"}")
+        _service = buildService(url, token)
+    }
+
+    /** 服务器地址或 Token 变更后重新初始化（调用前应停止 PhotoSyncService） */
+    @Synchronized
+    fun reinit(url: String, token: String?) {
+        Log.d(TAG, "reinit() url=$url token=${if (token != null) "present(${token.take(8)}...)" else "null"}")
+        _service = buildService(url, token)
+    }
+
+    private fun buildService(url: String, token: String?): ApiService {
         val baseUrl = if (url.endsWith("/")) url else "$url/"
         val client = OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
@@ -72,10 +86,15 @@ object ApiClient {
                     Log.w(TAG, "no token — sending request without Authorization: ${chain.request().url}")
                     chain.request()
                 }
-                chain.proceed(req)
+                val response = chain.proceed(req)
+                if (response.code == 401) {
+                    Log.w(TAG, "401 Unauthorized — triggering re-bind flow")
+                    onUnauthorized?.invoke()
+                }
+                response
             }
             .build()
-        _service = Retrofit.Builder()
+        return Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())

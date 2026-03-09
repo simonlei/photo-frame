@@ -13,6 +13,25 @@
             android:text="相框设置" android:textSize="22sp" android:textStyle="bold"
             android:layout_marginBottom="24dp" />
 
+        <!-- 服务器地址 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="服务器地址" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <EditText android:id="@+id/et_server_url"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:inputType="textUri"
+                android:hint="https://your-domain.com" />
+            <Button android:id="@+id/btn_reset_url"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="重置"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
         <!-- 展示时长 -->
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="每张照片展示时长（秒）" />
@@ -80,6 +99,20 @@
         <Button android:id="@+id/btn_save"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:text="保存设置" />
+
+        <!-- 关于 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="关于" android:textSize="16sp" android:textStyle="bold"
+            android:layout_marginTop="32dp" android:layout_marginBottom="8dp" />
+
+        <TextView android:id="@+id/tv_version"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#888888" android:textSize="14sp"
+            android:layout_marginBottom="12dp" />
+
+        <Button android:id="@+id/btn_check_update"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="检查更新" />
 
     </LinearLayout>
 </ScrollView>

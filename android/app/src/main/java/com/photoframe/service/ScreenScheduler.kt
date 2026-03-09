@@ -3,8 +3,8 @@ package com.photoframe.service
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
 import com.photoframe.data.AppPrefs
+import java.lang.ref.WeakReference
 import java.util.Calendar
 
 /**
@@ -15,6 +15,9 @@ import java.util.Calendar
 class ScreenScheduler(private val activity: Activity) {
     private val prefs = AppPrefs(activity)
     private val handler = Handler(Looper.getMainLooper())
+
+    /** 夜间模式状态变化回调，使用弱引用避免持有 Activity 导致内存泄漏 */
+    var nightModeListener: WeakReference<((isNight: Boolean) -> Unit)>? = null
 
     private val checkRunnable = object : Runnable {
         override fun run() {
@@ -47,6 +50,7 @@ class ScreenScheduler(private val activity: Activity) {
         }
 
         setBrightness(if (isNightTime) 0.01f else -1f)
+        nightModeListener?.get()?.invoke(isNightTime)
     }
 
     fun setBrightness(brightness: Float) {

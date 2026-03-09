@@ -24,18 +24,24 @@ class AutoUpdater(private val activity: Activity) {
     private val TAG = "AutoUpdater"
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun checkAndUpdate(currentVersion: String) {
+    fun checkAndUpdate(currentVersion: String, onNoUpdate: (() -> Unit)? = null) {
         scope.launch {
             try {
                 val resp = ApiClient.service.latestVersion()
-                val serverVersion = resp.version ?: return@launch
+                val serverVersion = resp.version ?: run {
+                    withContext(Dispatchers.Main) { onNoUpdate?.invoke() }
+                    return@launch
+                }
                 if (serverVersion.isNewerThan(currentVersion) && resp.apkUrl != null) {
                     withContext(Dispatchers.Main) {
                         showUpdateDialog(resp.apkUrl, serverVersion, resp.changelog, resp.apkSha256)
                     }
+                } else {
+                    withContext(Dispatchers.Main) { onNoUpdate?.invoke() }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "版本检查失败: ${e.message}")
+                withContext(Dispatchers.Main) { onNoUpdate?.invoke() }
             }
         }
     }
