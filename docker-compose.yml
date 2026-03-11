@@ -34,6 +34,21 @@ services:
     networks:
       - internal
 
+  nginx:
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./admin-frontend/dist:/app/admin-frontend/dist:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
