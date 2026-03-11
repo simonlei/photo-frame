@@ -24,6 +24,8 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+android/release.keystore
+android/app/release.keystore
 
 # Claude Code 本地配置
 .claude/settings.local.json
