@@ -5,7 +5,19 @@
       "Bash(\"D:/Soft/Android/jbr/bin/java\":*)",
       "Bash(curl:*)",
       "Bash(cd /d/work/photo-frame && find backend -name \"*.go\" | xargs grep -l \"device_users\\\\|DeviceUser\" 2>/dev/null)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(git:*)",
+      "Bash(go build:*)",
+      "Read(//c/go/**)",
+      "Read(//d/go/**)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell:*)",
+      "Bash(node:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(sed:*)",
+      "Bash(gh pr:*)"
     ]
   }
 }
