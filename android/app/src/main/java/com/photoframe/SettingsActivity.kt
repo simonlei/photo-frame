@@ -2,8 +2,11 @@ package com.photoframe
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.zxing.BarcodeFormat
+import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
 import com.photoframe.updater.AutoUpdater
@@ -73,6 +76,9 @@ class SettingsActivity : AppCompatActivity() {
         val tvDeviceId = findViewById<TextView>(R.id.tv_device_id)
         tvDeviceId.text = "相框 ID: ${prefs.deviceId ?: "未注册"}"
 
+        // 邀请家人二维码
+        loadInviteQrCode()
+
         // 保存
         findViewById<Button>(R.id.btn_save).setOnClickListener {
             val newUrl = etServerUrl.text.toString().trim()
@@ -99,6 +105,7 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.isBound = false
                 prefs.userToken = null
                 prefs.deviceId = null
+                prefs.qrToken = null
                 prefs.lastSyncTime = null
                 ApiClient.reinit(newUrl, null)
                 Toast.makeText(this, "服务器地址已更新，请重新绑定相框", Toast.LENGTH_SHORT).show()
@@ -125,6 +132,23 @@ class SettingsActivity : AppCompatActivity() {
                 btn.text = "检查更新"
                 Toast.makeText(this, "已是最新版本", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun loadInviteQrCode() {
+        val ivInviteQr = findViewById<ImageView>(R.id.iv_invite_qr)
+        val qrToken = prefs.qrToken
+        if (qrToken.isNullOrBlank()) {
+            ivInviteQr.visibility = View.GONE
+            return
+        }
+        val content = "photoframe://bind?qr_token=$qrToken"
+        try {
+            val bitmap = BarcodeEncoder().encodeBitmap(content, BarcodeFormat.QR_CODE, 512, 512)
+            ivInviteQr.setImageBitmap(bitmap)
+            ivInviteQr.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            ivInviteQr.visibility = View.GONE
         }
     }
 }

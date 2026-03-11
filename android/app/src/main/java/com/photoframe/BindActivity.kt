@@ -57,6 +57,17 @@ class BindActivity : AppCompatActivity() {
     }
 
     private suspend fun registerDevice() = withContext(Dispatchers.IO) {
+        // 已有 deviceId 和 qrToken，直接复用，无需重新注册
+        val existingDeviceId = prefs.deviceId
+        val existingQrToken = prefs.qrToken
+        if (!existingDeviceId.isNullOrBlank() && !existingQrToken.isNullOrBlank()) {
+            withContext(Dispatchers.Main) {
+                showQrCode(existingQrToken)
+                startPollingBind()
+            }
+            return@withContext
+        }
+
         try {
             val baseUrl = AppPrefs(this@BindActivity).serverBaseUrl
             val request = Request.Builder()

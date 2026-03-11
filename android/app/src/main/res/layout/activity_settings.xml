@@ -94,6 +94,39 @@
         <TextView android:id="@+id/tv_device_id"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:textColor="#888888" android:textSize="12sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 邀请家人 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#EEEEEE"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="邀请家人加入"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
+
+        <ImageView
+            android:id="@+id/iv_invite_qr"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:layout_gravity="center_horizontal"
+            android:contentDescription="绑定二维码"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_invite_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="扫码添加此相框，与家人共享照片"
+            android:textColor="#888888"
+            android:textSize="13sp"
             android:layout_marginBottom="24dp" />
 
         <Button android:id="@+id/btn_save"
