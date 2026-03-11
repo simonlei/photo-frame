@@ -35,7 +35,8 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:screenOrientation="sensor" />
+            android:screenOrientation="sensor"
+            android:theme="@style/Theme.PhotoFrame.Settings" />
 
         <!-- FileProvider for APK install -->
         <provider

@@ -6,4 +6,12 @@
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="android:windowBackground">@android:color/black</item>
     </style>
+
+    <!-- 设置页使用 Light 主题，避免黑色背景下文本不可见 -->
+    <style name="Theme.PhotoFrame.Settings" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#1976D2</item>
+        <item name="colorPrimaryVariant">#004BA0</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
 </resources>
