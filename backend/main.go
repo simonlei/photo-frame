@@ -62,6 +62,19 @@ func main() {
 		userAPI.DELETE("/photos/:id", handlers.DeletePhoto(db, cos))
 	}
 
+	// 管理员接口（ADMIN_TOKEN 鉴权，与用户 token 完全分开）
+	adminAPI := r.Group("/api/admin")
+	adminAPI.Use(middleware.AdminAuth())
+	{
+		adminAPI.GET("/stats", handlers.AdminStats(db))
+		adminAPI.GET("/devices", handlers.AdminListDevices(db))
+		adminAPI.DELETE("/devices/:id", handlers.AdminDeleteDevice(db, cos))
+		adminAPI.GET("/devices/:id/photos", handlers.AdminListDevicePhotos(db))
+		adminAPI.GET("/users", handlers.AdminListUsers(db))
+		adminAPI.GET("/photos", handlers.AdminListPhotos(db))
+		adminAPI.DELETE("/photos/:id", handlers.AdminDeletePhoto(db, cos))
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
