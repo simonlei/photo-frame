@@ -8,11 +8,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.zxing.BarcodeFormat
-import com.journeyapps.barcodescanner.BarcodeEncoder
 import android.util.Log
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
+import com.photoframe.util.QrCodeHelper
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,8 +60,15 @@ class BindActivity : AppCompatActivity() {
         val existingDeviceId = prefs.deviceId
         val existingQrToken = prefs.qrToken
         if (!existingDeviceId.isNullOrBlank() && !existingQrToken.isNullOrBlank()) {
+            val bitmap = withContext(Dispatchers.Default) {
+                QrCodeHelper.generateBitmap(existingQrToken)
+            }
             withContext(Dispatchers.Main) {
-                showQrCode(existingQrToken)
+                bitmap?.let {
+                    ivQr.setImageBitmap(it)
+                    ivQr.visibility = View.VISIBLE
+                }
+                tvHint.text = "用微信扫码绑定相框"
                 startPollingBind()
             }
             return@withContext
@@ -84,8 +90,15 @@ class BindActivity : AppCompatActivity() {
                 prefs.deviceId = deviceId
                 prefs.qrToken = qrToken
 
+                val bitmap = withContext(Dispatchers.Default) {
+                    QrCodeHelper.generateBitmap(qrToken)
+                }
                 withContext(Dispatchers.Main) {
-                    showQrCode(qrToken)
+                    bitmap?.let {
+                        ivQr.setImageBitmap(it)
+                        ivQr.visibility = View.VISIBLE
+                    }
+                    tvHint.text = "用微信扫码绑定相框"
                     startPollingBind()
                 }
             }
@@ -94,15 +107,6 @@ class BindActivity : AppCompatActivity() {
                 tvHint.text = "连接服务器失败，请检查网络后重试"
             }
         }
-    }
-
-    private fun showQrCode(qrToken: String) {
-        val qrContent = "photoframe://bind?qr_token=$qrToken"
-        val barcodeEncoder = BarcodeEncoder()
-        val bitmap = barcodeEncoder.encodeBitmap(qrContent, BarcodeFormat.QR_CODE, 512, 512)
-        ivQr.setImageBitmap(bitmap)
-        tvHint.text = "用微信扫码绑定相框"
-        ivQr.visibility = View.VISIBLE
     }
 
     /** 每 3 秒轮询一次，检查是否已有用户绑定 */
@@ -122,7 +126,6 @@ class BindActivity : AppCompatActivity() {
                     http.newCall(request).execute().use { resp ->
                         val bodyStr = resp.body?.string()
                         Log.d("BindActivity", "poll response <- ${resp.code} ${resp.message}, headers=${resp.headers}")
-                        Log.d("BindActivity", "poll response body: $bodyStr")
                         if (resp.isSuccessful) {
                             if (bodyStr.isNullOrEmpty()) return@use
                             val body = JSONObject(bodyStr)
@@ -131,7 +134,7 @@ class BindActivity : AppCompatActivity() {
                             if (bound) {
                                 prefs.isBound = true
                                 val token = body.optString("user_token").takeIf { it.isNotEmpty() }
-                                Log.d("BindActivity", "bind-status: bound=true, user_token=${token?.take(8) ?: "null"}")
+                                Log.d("BindActivity", "bind-status: bound=true, user_token=${if (token != null) "[PRESENT]" else "null"}")
                                 token?.let { prefs.userToken = it }
                                 Log.d("BindActivity", "prefs.userToken after save=${prefs.userToken?.take(8) ?: "null"}")
                                 withContext(Dispatchers.Main) { goMain() }

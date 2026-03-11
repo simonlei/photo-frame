@@ -5,11 +5,14 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import com.google.zxing.BarcodeFormat
-import com.journeyapps.barcodescanner.BarcodeEncoder
+import androidx.lifecycle.lifecycleScope
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
 import com.photoframe.updater.AutoUpdater
+import com.photoframe.util.QrCodeHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -142,13 +145,16 @@ class SettingsActivity : AppCompatActivity() {
             ivInviteQr.visibility = View.GONE
             return
         }
-        val content = "photoframe://bind?qr_token=$qrToken"
-        try {
-            val bitmap = BarcodeEncoder().encodeBitmap(content, BarcodeFormat.QR_CODE, 512, 512)
-            ivInviteQr.setImageBitmap(bitmap)
-            ivInviteQr.visibility = View.VISIBLE
-        } catch (e: Exception) {
-            ivInviteQr.visibility = View.GONE
+        lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.Default) {
+                QrCodeHelper.generateBitmap(qrToken)
+            }
+            if (bitmap != null) {
+                ivInviteQr.setImageBitmap(bitmap)
+                ivInviteQr.visibility = View.VISIBLE
+            } else {
+                ivInviteQr.visibility = View.GONE
+            }
         }
     }
 }

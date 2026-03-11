@@ -36,6 +36,7 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:screenOrientation="sensor"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.PhotoFrame.Settings" />
 
         <!-- FileProvider for APK install -->
