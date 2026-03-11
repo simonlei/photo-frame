@@ -63,8 +63,12 @@ func main() {
 	}
 
 	// 管理员接口（ADMIN_TOKEN 鉴权，与用户 token 完全分开）
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	if adminToken == "" {
+		log.Fatal("ADMIN_TOKEN 环境变量未设置")
+	}
 	adminAPI := r.Group("/api/admin")
-	adminAPI.Use(middleware.AdminAuth())
+	adminAPI.Use(middleware.AdminAuth(adminToken))
 	{
 		adminAPI.GET("/stats", handlers.AdminStats(db))
 		adminAPI.GET("/devices", handlers.AdminListDevices(db))

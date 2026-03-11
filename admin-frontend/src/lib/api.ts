@@ -1,15 +1,15 @@
 const API_BASE = '/api/admin'
 
-function getToken(): string {
-  return localStorage.getItem('admin_token') || ''
+function getToken(): string | null {
+  return sessionStorage.getItem('admin_token')
 }
 
 export function saveToken(token: string) {
-  localStorage.setItem('admin_token', token)
+  sessionStorage.setItem('admin_token', token)
 }
 
 export function clearToken() {
-  localStorage.removeItem('admin_token')
+  sessionStorage.removeItem('admin_token')
 }
 
 export function isLoggedIn(): boolean {
@@ -17,11 +17,12 @@ export function isLoggedIn(): boolean {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   })

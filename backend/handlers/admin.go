@@ -1,15 +1,31 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/simonlei/photo-frame/backend/models"
 	"github.com/simonlei/photo-frame/backend/storage"
 	"gorm.io/gorm"
 )
+
+// parsePage extracts page/page_size query params and returns page, pageSize, and offset.
+func parsePage(c *gin.Context) (page, pageSize, offset int) {
+	page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ = strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 200 {
+		pageSize = 50
+	}
+	offset = (page - 1) * pageSize
+	return
+}
 
 // AdminStats 返回系统总览统计
 func AdminStats(db *gorm.DB) gin.HandlerFunc {
@@ -42,41 +58,44 @@ func AdminStats(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// AdminListDevices 列出所有设备及统计
+// AdminListDevices 列出所有设备及统计（分页，单次聚合查询）
 func AdminListDevices(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type deviceItem struct {
-			ID         string `json:"id"`
-			Name       string `json:"name"`
-			UserCount  int64  `json:"user_count"`
-			PhotoCount int64  `json:"photo_count"`
-			CreatedAt  string `json:"created_at"`
+		type deviceRow struct {
+			ID         string    `json:"id"`
+			Name       string    `json:"name"`
+			UserCount  int64     `json:"user_count"`
+			PhotoCount int64     `json:"photo_count"`
+			CreatedAt  time.Time `json:"-"`
+			CreatedAtS string    `json:"created_at"`
 		}
 
-		var devices []models.Device
-		if err := db.Find(&devices).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
-			return
+		page, pageSize, offset := parsePage(c)
+
+		var total int64
+		db.Model(&models.Device{}).Count(&total)
+
+		var rows []deviceRow
+		db.Table("devices").
+			Select("devices.id, devices.name, devices.created_at, " +
+				"COUNT(DISTINCT du.user_id) as user_count, " +
+				"COUNT(DISTINCT p.id) as photo_count").
+			Joins("LEFT JOIN device_users du ON du.device_id = devices.id").
+			Joins("LEFT JOIN photos p ON p.device_id = devices.id").
+			Group("devices.id, devices.name, devices.created_at").
+			Order("devices.created_at DESC").
+			Offset(offset).Limit(pageSize).
+			Scan(&rows)
+
+		for i := range rows {
+			rows[i].CreatedAtS = rows[i].CreatedAt.Format("2006-01-02 15:04:05")
 		}
 
-		items := make([]deviceItem, 0, len(devices))
-		for _, d := range devices {
-			var userCount, photoCount int64
-			db.Table("device_users").Where("device_id = ?", d.ID).Count(&userCount)
-			db.Model(&models.Photo{}).Where("device_id = ?", d.ID).Count(&photoCount)
-			items = append(items, deviceItem{
-				ID:         d.ID,
-				Name:       d.Name,
-				UserCount:  userCount,
-				PhotoCount: photoCount,
-				CreatedAt:  d.CreatedAt.Format("2006-01-02 15:04:05"),
-			})
-		}
-		c.JSON(http.StatusOK, gin.H{"devices": items})
+		c.JSON(http.StatusOK, gin.H{"devices": rows, "total": total, "page": page, "page_size": pageSize})
 	}
 }
 
-// AdminDeleteDevice 删除设备及其所有照片（含 COS）
+// AdminDeleteDevice 删除设备及其所有照片（含 COS），使用事务保证原子性
 func AdminDeleteDevice(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("id")
@@ -87,28 +106,34 @@ func AdminDeleteDevice(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 			return
 		}
 
-		// 先查出该设备所有照片的 COS key
-		var photos []models.Photo
-		db.Where("device_id = ?", deviceID).Find(&photos)
-
-		// 删除 device_users 关联
-		db.Exec("DELETE FROM device_users WHERE device_id = ?", deviceID)
-		// 删除照片记录
-		db.Where("device_id = ?", deviceID).Delete(&models.Photo{})
-		// 删除设备
-		if err := db.Delete(&device).Error; err != nil {
+		var cosKeys []string
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&models.Photo{}).Where("device_id = ?", deviceID).Pluck("cos_key", &cosKeys).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec("DELETE FROM device_users WHERE device_id = ?", deviceID).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("device_id = ?", deviceID).Delete(&models.Photo{}).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&device).Error
+		})
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除设备失败"})
 			return
 		}
 
-		// 清理 COS（best-effort，失败只记录日志）
-		for _, p := range photos {
-			if err := cos.Delete(c.Request.Context(), p.CosKey); err != nil {
-				log.Printf("COS 清理失败 key=%s: %v", p.CosKey, err)
-			}
-		}
-
 		c.JSON(http.StatusOK, gin.H{"message": "设备已删除"})
+
+		// COS 清理移至后台 goroutine，不阻塞 HTTP 响应
+		go func(keys []string) {
+			for _, key := range keys {
+				if err := cos.Delete(context.Background(), key); err != nil {
+					log.Printf("COS 清理失败 key=%s: %v", key, err)
+				}
+			}
+		}(cosKeys)
 	}
 }
 
@@ -117,15 +142,7 @@ func AdminListDevicePhotos(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("id")
 
-		page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
-		if page < 1 {
-			page = 1
-		}
-		if pageSize < 1 || pageSize > 200 {
-			pageSize = 50
-		}
-		offset := (page - 1) * pageSize
+		page, pageSize, offset := parsePage(c)
 
 		var total int64
 		db.Model(&models.Photo{}).Where("device_id = ?", deviceID).Count(&total)
@@ -159,52 +176,47 @@ func AdminListDevicePhotos(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// AdminListUsers 列出所有用户及统计
+// AdminListUsers 列出所有用户及统计（分页，单次聚合查询）
 func AdminListUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		type userItem struct {
-			ID          uint   `json:"id"`
-			Nickname    string `json:"nickname"`
-			DeviceCount int64  `json:"device_count"`
-			PhotoCount  int64  `json:"photo_count"`
-			CreatedAt   string `json:"created_at"`
+		type userRow struct {
+			ID          uint      `json:"id"`
+			Nickname    string    `json:"nickname"`
+			DeviceCount int64     `json:"device_count"`
+			PhotoCount  int64     `json:"photo_count"`
+			CreatedAt   time.Time `json:"-"`
+			CreatedAtS  string    `json:"created_at"`
 		}
 
-		var users []models.User
-		if err := db.Find(&users).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
-			return
+		page, pageSize, offset := parsePage(c)
+
+		var total int64
+		db.Model(&models.User{}).Count(&total)
+
+		var rows []userRow
+		db.Table("users").
+			Select("users.id, users.nickname, users.created_at, " +
+				"COUNT(DISTINCT du.device_id) as device_count, " +
+				"COUNT(DISTINCT p.id) as photo_count").
+			Joins("LEFT JOIN device_users du ON du.user_id = users.id").
+			Joins("LEFT JOIN photos p ON p.user_id = users.id").
+			Group("users.id, users.nickname, users.created_at").
+			Order("users.created_at DESC").
+			Offset(offset).Limit(pageSize).
+			Scan(&rows)
+
+		for i := range rows {
+			rows[i].CreatedAtS = rows[i].CreatedAt.Format("2006-01-02 15:04:05")
 		}
 
-		items := make([]userItem, 0, len(users))
-		for _, u := range users {
-			var deviceCount, photoCount int64
-			db.Table("device_users").Where("user_id = ?", u.ID).Count(&deviceCount)
-			db.Model(&models.Photo{}).Where("user_id = ?", u.ID).Count(&photoCount)
-			items = append(items, userItem{
-				ID:          u.ID,
-				Nickname:    u.Nickname,
-				DeviceCount: deviceCount,
-				PhotoCount:  photoCount,
-				CreatedAt:   u.CreatedAt.Format("2006-01-02 15:04:05"),
-			})
-		}
-		c.JSON(http.StatusOK, gin.H{"users": items})
+		c.JSON(http.StatusOK, gin.H{"users": rows, "total": total, "page": page, "page_size": pageSize})
 	}
 }
 
 // AdminListPhotos 跨设备列出所有照片（分页）
 func AdminListPhotos(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
-		if page < 1 {
-			page = 1
-		}
-		if pageSize < 1 || pageSize > 200 {
-			pageSize = 50
-		}
-		offset := (page - 1) * pageSize
+		page, pageSize, offset := parsePage(c)
 
 		var total int64
 		db.Model(&models.Photo{}).Count(&total)

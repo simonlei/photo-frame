@@ -29,8 +29,6 @@ services:
       DB_USER: ${MYSQL_USER:-photoframe}
       DB_PASS: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE:-photoframe}
-    ports:
-      - "8080:8080"
     networks:
       - internal
 
