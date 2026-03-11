@@ -170,6 +170,7 @@ class MainActivity : AppCompatActivity() {
 /** 淡入淡出 */
 class FadePageTransformer : ViewPager2.PageTransformer {
     override fun transformPage(page: View, position: Float) {
+        page.translationX = -position * page.width  // 抵消默认水平位移
         page.alpha = 1f - Math.abs(position)
     }
 }
@@ -177,6 +178,7 @@ class FadePageTransformer : ViewPager2.PageTransformer {
 /** 缩放 */
 class ZoomPageTransformer : ViewPager2.PageTransformer {
     override fun transformPage(page: View, position: Float) {
+        page.translationX = -position * page.width  // 抵消默认水平位移
         val scale = if (Math.abs(position) < 1) 0.85f + (1 - Math.abs(position)) * 0.15f else 0.85f
         page.scaleX = scale
         page.scaleY = scale
