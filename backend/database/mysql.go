@@ -47,7 +47,6 @@ func Init() (*gorm.DB, error) {
 			&models.Device{},
 			&models.User{},
 			&models.Photo{},
-			&models.Version{},
 		); err != nil {
 			return nil, fmt.Errorf("数据库迁移失败: %w", err)
 		}
