@@ -53,32 +53,3 @@ jobs:
           files: android/app/build/outputs/apk/release/app-release.apk
           name: "v${{ steps.version.outputs.version }}"
           generate_release_notes: true
-
-      # 计算 SHA-256
-      - name: Compute SHA-256
-        id: sha256
-        run: |
-          HASH=$(sha256sum android/app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      # 将新版本写入生产数据库
-      - name: Register version in database
-        env:
-          DB_HOST: ${{ secrets.DB_HOST || '127.0.0.1' }}
-          DB_PORT: ${{ secrets.DB_PORT || '3306' }}
-          DB_NAME: ${{ secrets.DB_NAME || 'photoframe' }}
-          DB_USER: ${{ secrets.DB_USER || 'photoframe' }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          APK_BASE_URL: ${{ secrets.APK_BASE_URL }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          HASH="${{ steps.sha256.outputs.hash }}"
-          APK_URL="${APK_BASE_URL}/v${VERSION}/app-release.apk"
-          TAG_NAME="${GITHUB_REF_NAME}"
-          # 从 Release notes 获取 changelog（取 tag message）
-          CHANGELOG=$(git tag -l --format='%(contents)' "$TAG_NAME" | head -20)
-
-          mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" <<SQL
-            INSERT INTO versions (version, apk_url, apk_sha256, changelog, created_at)
-            VALUES ('${VERSION}', '${APK_URL}', '${HASH}', '${CHANGELOG}', NOW());
-          SQL

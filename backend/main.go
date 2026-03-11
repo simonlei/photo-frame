@@ -49,7 +49,7 @@ func main() {
 	r.POST("/api/wx-login", handlers.WxLogin(db))
 	r.POST("/api/device/register", handlers.DeviceRegister(db))
 	r.GET("/api/device/bind-status", handlers.DeviceBindStatus(db))
-	r.GET("/api/version/latest", handlers.VersionLatest(db))
+	r.GET("/api/version/latest", handlers.VersionLatest())
 
 	// 需要用户 token 的接口
 	userAPI := r.Group("/api")

@@ -14,12 +14,3 @@ type Photo struct {
 	User   User   `gorm:"foreignKey:UserID" json:"-"`
 	Device Device `gorm:"foreignKey:DeviceID" json:"-"`
 }
-
-type Version struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Version   string    `gorm:"type:varchar(20);not null" json:"version"`
-	ApkURL    string    `gorm:"type:varchar(1024);not null" json:"apk_url"`
-	ApkSha256 string    `gorm:"type:varchar(64)" json:"apk_sha256"`
-	Changelog string    `gorm:"type:text" json:"changelog"`
-	CreatedAt time.Time `json:"created_at"`
-}
