@@ -85,7 +85,10 @@ func DeviceBindStatus(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// MyFrames 获取用户绑定的相框列表
+// MyFrames 返回当前用户绑定的相框列表。
+// 响应中包含 qr_token 字段，可用于生成邀请绑定链接（photoframe://bind?qr_token=...）。
+// 该接口受用户 token 认证保护，仅返回当前用户已绑定的设备，因此 qr_token 仅对
+// 已绑定该设备的用户可见，安全性由 UserAuth 中间件保障。
 func MyFrames(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
