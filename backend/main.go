@@ -40,12 +40,13 @@ func main() {
 		os.Getenv("COS_REGION"),
 	)
 
-	// ✨ 新增：初始化腾讯地图服务
+	// ✨ 新增：初始化腾讯地图服务（使用签名校验方式）
 	tencentMapKey := os.Getenv("TENCENT_MAP_API_KEY")
-	if tencentMapKey == "" {
-		log.Println("警告：TENCENT_MAP_API_KEY 未设置，地理编码功能将不可用")
+	tencentMapSecret := os.Getenv("TENCENT_MAP_SECRET_KEY")
+	if tencentMapKey == "" || tencentMapSecret == "" {
+		log.Fatal("❌ TENCENT_MAP_API_KEY 和 TENCENT_MAP_SECRET_KEY 必须同时设置")
 	}
-	geocoder := services.NewGeocoder(tencentMapKey)
+	geocoder := services.NewGeocoder(tencentMapKey, tencentMapSecret)
 
 	// ✨ 新增：启动地理编码 Worker
 	geocodeWorker := workers.NewGeocodeWorker(db, geocoder)
