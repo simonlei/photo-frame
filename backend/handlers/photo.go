@@ -80,9 +80,10 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage, geocodeWorker *workers.Ge
 		}
 
 		// ✨ 新增：提取 EXIF（在 COS 上传前）
+		log.Printf("📤 开始处理照片上传 (user_id=%d, device_id=%s, filename=%s)", user.ID, deviceID, file.Filename)
 		exifData, err := services.ExtractEXIF(src)
 		if err != nil {
-			log.Printf("EXIF 提取失败 (user=%d, file=%s): %v", user.ID, file.Filename, err)
+			log.Printf("❌ EXIF 提取失败 (user=%d, file=%s): %v", user.ID, file.Filename, err)
 			// 不返回错误，继续上传流程
 		}
 
@@ -127,12 +128,19 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage, geocodeWorker *workers.Ge
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库写入失败"})
 			return
 		}
+		log.Printf("✅ 照片入库成功 (photo_id=%d, cos_key=%s)", photo.ID, cosKey)
 
 		// ✨ 新增：如果有 GPS 坐标，加入地理编码队列
 		if photo.Latitude != nil && photo.Longitude != nil && geocodeWorker != nil {
+			log.Printf("🌍 照片包含 GPS 坐标，加入地理编码队列 (photo_id=%d, lat=%.6f, lon=%.6f)", 
+				photo.ID, *photo.Latitude, *photo.Longitude)
 			if err := geocodeWorker.Enqueue(photo.ID, *photo.Latitude, *photo.Longitude); err != nil {
-				log.Printf("地理编码入队失败 (photo_id=%d): %v", photo.ID, err)
+				log.Printf("❌ 地理编码入队失败 (photo_id=%d): %v", photo.ID, err)
+			} else {
+				log.Printf("✅ 地理编码任务已入队 (photo_id=%d)", photo.ID)
 			}
+		} else {
+			log.Printf("⚠️  照片不包含 GPS 坐标，跳过地理编码 (photo_id=%d)", photo.ID)
 		}
 
 		c.JSON(http.StatusOK, gin.H{

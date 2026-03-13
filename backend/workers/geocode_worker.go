@@ -63,37 +63,45 @@ func (w *GeocodeWorker) worker(ctx context.Context, id int) {
 
 // processTask 执行地理编码
 func (w *GeocodeWorker) processTask(ctx context.Context, task geocodeTask) {
+	log.Printf("🔄 开始处理地理编码任务 (photo_id=%d, lat=%.6f, lon=%.6f, retries=%d)", 
+		task.photoID, task.lat, task.lon, task.retries)
+	
 	// 获取地址
 	address, err := w.geocoder.ReverseGeocode(ctx, task.lat, task.lon)
 	if err != nil {
-		log.Printf("地理编码失败 (photo_id=%d, retries=%d): %v", task.photoID, task.retries, err)
+		log.Printf("❌ 地理编码失败 (photo_id=%d, retries=%d): %v", task.photoID, task.retries, err)
 
 		// 失败重试（最多 3 次，指数退避）
 		if task.retries < 3 {
 			task.retries++
 			backoff := time.Duration(1<<uint(task.retries)) * time.Second // 2s, 4s, 8s
+			log.Printf("⏳ 等待 %v 后重试 (photo_id=%d)", backoff, task.photoID)
 			time.Sleep(backoff)
 
 			// 重新入队
 			select {
 			case w.queue <- task:
-				log.Printf("地理编码重试 %d/3 (photo_id=%d)", task.retries, task.photoID)
+				log.Printf("🔁 地理编码重试 %d/3 (photo_id=%d)", task.retries, task.photoID)
 			default:
-				log.Printf("队列已满，放弃重试 (photo_id=%d)", task.photoID)
+				log.Printf("⚠️  队列已满，放弃重试 (photo_id=%d)", task.photoID)
 			}
+		} else {
+			log.Printf("⚠️  达到最大重试次数，放弃任务 (photo_id=%d)", task.photoID)
 		}
 		return
 	}
+
+	log.Printf("✅ 地理编码 API 调用成功 (photo_id=%d, address=%s)", task.photoID, address)
 
 	// 更新数据库
 	if err := w.db.Model(&models.Photo{}).
 		Where("id = ?", task.photoID).
 		Update("location_address", address).Error; err != nil {
-		log.Printf("更新地址失败 (photo_id=%d): %v", task.photoID, err)
+		log.Printf("❌ 更新地址到数据库失败 (photo_id=%d): %v", task.photoID, err)
 		return
 	}
 
-	log.Printf("地理编码成功 (photo_id=%d, address=%s)", task.photoID, address)
+	log.Printf("🎉 地理编码完成 (photo_id=%d, address=%s)", task.photoID, address)
 }
 
 // Enqueue 添加任务到队列
