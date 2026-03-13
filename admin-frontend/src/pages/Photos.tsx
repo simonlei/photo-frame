@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, message, Pagination, Spin, Typography } from 'antd'
+import { Alert, message, Pagination, Spin, Tooltip, Typography } from 'antd'
 import { api, type PhotoItem } from '../lib/api'
 import PhotoGrid from '../components/PhotoGrid'
 
@@ -53,11 +53,32 @@ export default function Photos() {
           photos={photos}
           onDelete={handleDelete}
           renderCaption={p => (
-            <div>
-              <Text ellipsis style={{ fontSize: 11 }}>{p.device_name}</Text>
-              <br />
-              <Text type="secondary" style={{ fontSize: 10 }}>{p.uploader_name} · {p.uploaded_at}</Text>
-            </div>
+            <Tooltip 
+              title={
+                <div style={{ fontSize: 12 }}>
+                  {p.taken_at && <div>📸 拍摄于 {p.taken_at}</div>}
+                  {p.location_address && <div>📍 {p.location_address}</div>}
+                  {p.camera_model && <div>📷 {p.camera_model}</div>}
+                </div>
+              }
+              placement="top"
+            >
+              <div>
+                <Text ellipsis style={{ fontSize: 11 }}>{p.device_name}</Text>
+                <br />
+                {p.location_address && (
+                  <>
+                    <Text ellipsis type="secondary" style={{ fontSize: 10 }}>
+                      📍 {p.location_address.slice(0, 12)}...
+                    </Text>
+                    <br />
+                  </>
+                )}
+                <Text type="secondary" style={{ fontSize: 10 }}>
+                  {p.uploader_name} · {p.taken_at?.slice(0, 10) || p.uploaded_at}
+                </Text>
+              </div>
+            </Tooltip>
           )}
         />
       </Spin>
