@@ -65,7 +65,7 @@ func (g *Geocoder) calculateSignature(requestPath string, params map[string]stri
 func (g *Geocoder) ReverseGeocode(ctx context.Context, lat, lon float64) (string, error) {
 	// 腾讯地图 API 文档：https://lbs.qq.com/service/webService/webServiceGuide/webServiceGcoder
 	apiURL := "https://apis.map.qq.com/ws/geocoder/v1/"
-	requestPath := "/ws/geocoder/v1"
+	requestPath := "/ws/geocoder/v1/"
 
 	// 1. 构建参数（使用原始未编码的值用于签名计算）
 	params := map[string]string{

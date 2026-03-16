@@ -73,8 +73,13 @@ class PhotoSyncService(
                     id = it.id,
                     url = fullUrl,
                     takenAt = it.takenAt,
-                    uploaderName = it.uploaderName,
-                    uploadedAt = it.uploadedAt
+                    uploadedAt = it.uploadedAt,
+                    latitude = it.latitude,
+                    longitude = it.longitude,
+                    locationAddress = it.locationAddress,
+                    cameraMake = it.cameraMake,
+                    cameraModel = it.cameraModel,
+                    uploaderName = it.uploaderName
                 )
             }
             // 更新最后同步时间为最新一张的 uploadedAt
