@@ -28,7 +28,10 @@ class SlideShowAdapter(
 
     inner class PhotoViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val imageView: ImageView = itemView.findViewById(R.id.iv_photo)
-        val tvInfo: TextView = itemView.findViewById(R.id.tv_info)
+        val llInfo: ViewGroup = itemView.findViewById(R.id.ll_info)
+        val tvTakenTime: TextView = itemView.findViewById(R.id.tv_taken_time)
+        val tvLocation: TextView = itemView.findViewById(R.id.tv_location)
+        val tvUploader: TextView = itemView.findViewById(R.id.tv_uploader)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PhotoViewHolder {
@@ -64,13 +67,39 @@ class SlideShowAdapter(
             .error(android.R.color.black)
             .into(holder.imageView)
 
+        // ✨ 更新：EXIF 信息显示逻辑
         if (showInfo) {
-            val date = photo.takenAt?.take(10) ?: photo.uploadedAt.take(10)
+            // 1. 拍摄时间（优先使用 takenAt，回退到 uploadedAt）
+            val displayTime = photo.takenAt?.take(16)?.replace("T", " ")
+                ?: photo.uploadedAt.take(10)
+            holder.tvTakenTime.apply {
+                text = "📸 拍摄于 $displayTime"
+                visibility = View.VISIBLE
+            }
+
+            // 2. 地理位置（有值才显示）
+            if (!photo.locationAddress.isNullOrEmpty()) {
+                holder.tvLocation.apply {
+                    text = "📍 ${photo.locationAddress}"
+                    visibility = View.VISIBLE
+                }
+            } else {
+                holder.tvLocation.visibility = View.GONE
+            }
+
+            // 3. 上传者
             val uploader = photo.uploaderName.ifBlank { "未知" }
-            holder.tvInfo.text = "$date · $uploader"
-            holder.tvInfo.visibility = View.VISIBLE
+            holder.tvUploader.apply {
+                text = "👤 $uploader"
+                visibility = View.VISIBLE
+            }
+            
+            holder.llInfo.visibility = View.VISIBLE
         } else {
-            holder.tvInfo.visibility = View.GONE
+            holder.llInfo.visibility = View.GONE
+            holder.tvTakenTime.visibility = View.GONE
+            holder.tvLocation.visibility = View.GONE
+            holder.tvUploader.visibility = View.GONE
         }
     }
 

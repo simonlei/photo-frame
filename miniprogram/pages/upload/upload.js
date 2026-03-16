@@ -1,7 +1,6 @@
-const { getFileSize, authHeader } = require('../../utils/api')
+const { authHeader } = require('../../utils/api')
 
 const CONCURRENCY = 3
-const COMPRESS_THRESHOLD = 2 * 1024 * 1024 // 2MB
 const MAX_PHOTOS = 9
 
 Page({
@@ -48,7 +47,6 @@ Page({
         const newItems = res.tempFiles.map(f => ({
           id: f.tempFilePath,
           tempFilePath: f.tempFilePath,
-          compressedPath: '',
           status: 'pending',
           progress: 0,
           error: ''
@@ -112,22 +110,8 @@ Page({
     if (!item || !this.data) return
     this._updateItem(item.id, { status: 'uploading', progress: 0, error: '' })
 
-    // 压缩：使用缓存的压缩路径，避免重试时重复压缩
-    let uploadPath = item.compressedPath || item.tempFilePath
-    if (!item.compressedPath) {
-      try {
-        const size = await getFileSize(item.tempFilePath)
-        if (size > COMPRESS_THRESHOLD) {
-          const res = await new Promise((resolve, reject) =>
-            wx.compressImage({ src: item.tempFilePath, quality: 80, success: resolve, fail: reject })
-          )
-          uploadPath = res.tempFilePath
-          this._updateItem(item.id, { compressedPath: uploadPath })  // 缓存压缩结果
-        }
-      } catch (e) {
-        // 压缩失败时继续用原图
-      }
-    }
+    // 直接使用原图，保留 EXIF（含 GPS）
+    const uploadPath = item.tempFilePath
 
     return new Promise((resolve) => {
       if (!this.data) { resolve(); return }

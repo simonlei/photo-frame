@@ -33,6 +33,10 @@
       <view wx:for="{{photos}}" wx:key="id" class="photo-cell">
         <image class="photo-img" src="{{item.url}}" mode="aspectFill" lazy-load />
         <view class="delete-btn" bindtap="onTapDelete" data-photo="{{item}}">×</view>
+        <!-- ✨ 新增：地理位置显示 -->
+        <view wx:if="{{item.location_address}}" class="photo-location">
+          📍 {{item.location_address}}
+        </view>
         <view class="photo-date">{{item.uploaded_at}}</view>
       </view>
       <!-- 加载更多 -->

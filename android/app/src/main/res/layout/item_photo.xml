@@ -10,17 +10,52 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop" />
 
-    <TextView
-        android:id="@+id/tv_info"
+    <LinearLayout
+        android:id="@+id/ll_info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:padding="6dp"
+        android:orientation="vertical"
         android:background="#88000000"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:fontFamily="sans-serif-light"
-        android:visibility="gone" />
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <!-- 拍摄时间 -->
+        <TextView
+            android:id="@+id/tv_taken_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-light"
+            android:visibility="gone" />
+
+        <!-- 地理位置 -->
+        <TextView
+            android:id="@+id/tv_location"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-light"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:visibility="gone" />
+
+        <!-- 上传者 -->
+        <TextView
+            android:id="@+id/tv_uploader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-light"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
 </FrameLayout>
+

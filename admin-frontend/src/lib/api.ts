@@ -74,7 +74,13 @@ export interface PhotoItem {
   device_id?: string
   device_name?: string
   uploader_name: string
+  taken_at?: string          // EXIF 拍摄时间（新增）
   uploaded_at: string
+  latitude?: number          // 纬度（新增）
+  longitude?: number         // 经度（新增）
+  location_address?: string  // 详细地址（新增）
+  camera_make?: string       // 相机制造商（新增）
+  camera_model?: string      // 相机型号（新增）
 }
 
 export interface PagedResult<T> {

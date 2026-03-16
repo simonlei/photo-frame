@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/simonlei/photo-frame/backend/database"
 	"github.com/simonlei/photo-frame/backend/handlers"
 	"github.com/simonlei/photo-frame/backend/middleware"
+	"github.com/simonlei/photo-frame/backend/services"
 	"github.com/simonlei/photo-frame/backend/storage"
+	"github.com/simonlei/photo-frame/backend/workers"
 )
 
 func main() {
@@ -35,6 +40,20 @@ func main() {
 		os.Getenv("COS_REGION"),
 	)
 
+	// ✨ 新增：初始化腾讯地图服务（使用签名校验方式）
+	tencentMapKey := os.Getenv("TENCENT_MAP_API_KEY")
+	tencentMapSecret := os.Getenv("TENCENT_MAP_SECRET_KEY")
+	if tencentMapKey == "" || tencentMapSecret == "" {
+		log.Fatal("❌ TENCENT_MAP_API_KEY 和 TENCENT_MAP_SECRET_KEY 必须同时设置")
+	}
+	geocoder := services.NewGeocoder(tencentMapKey, tencentMapSecret)
+
+	// ✨ 新增：启动地理编码 Worker
+	geocodeWorker := workers.NewGeocodeWorker(db, geocoder)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	geocodeWorker.Start(ctx, 3) // 并发数 3
+
 	// 初始化 Gin
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -57,7 +76,7 @@ func main() {
 	{
 		userAPI.POST("/bind", handlers.Bind(db))
 		userAPI.GET("/my/frames", handlers.MyFrames(db))
-		userAPI.POST("/upload", handlers.UploadPhoto(db, cos))
+		userAPI.POST("/upload", handlers.UploadPhoto(db, cos, geocodeWorker))
 		userAPI.GET("/photos", handlers.ListPhotos(db))
 		userAPI.DELETE("/photos/:id", handlers.DeletePhoto(db, cos))
 	}
@@ -84,7 +103,20 @@ func main() {
 		port = "8080"
 	}
 	log.Printf("服务启动，监听端口 :%s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("服务启动失败: %v", err)
-	}
+
+	// ✨ 新增：优雅关闭
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := r.Run(":" + port); err != nil {
+			log.Fatalf("服务启动失败: %v", err)
+		}
+	}()
+
+	<-quit
+	log.Println("正在关闭服务...")
+	cancel() // 停止 Worker
+	geocodeWorker.Stop()
+	log.Println("服务已安全关闭")
 }

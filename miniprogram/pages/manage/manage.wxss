@@ -87,6 +87,20 @@
   border-bottom-left-radius: 6rpx;
 }
 
+.photo-location {
+  position: absolute;
+  bottom: 30rpx; /* 在时间上方 */
+  left: 0;
+  right: 0;
+  padding: 4rpx 8rpx;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 22rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 地址过长时截断 */
+}
+
 .photo-date {
   position: absolute;
   bottom: 0;

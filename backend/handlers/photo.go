@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -13,7 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/simonlei/photo-frame/backend/models"
+	"github.com/simonlei/photo-frame/backend/services"
 	"github.com/simonlei/photo-frame/backend/storage"
+	"github.com/simonlei/photo-frame/backend/workers"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +28,7 @@ func isUserBoundToDevice(db *gorm.DB, userID uint, deviceID string) bool {
 }
 
 // UploadPhoto 上传照片到 COS，元数据写入 MySQL
-func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
+func UploadPhoto(db *gorm.DB, cos *storage.COSStorage, geocodeWorker *workers.GeocodeWorker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
 		deviceID := c.PostForm("device_id")
@@ -76,6 +79,20 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 			return
 		}
 
+		// ✨ 新增：提取 EXIF（在 COS 上传前）
+		log.Printf("📤 开始处理照片上传 (user_id=%d, device_id=%s, filename=%s)", user.ID, deviceID, file.Filename)
+		exifData, err := services.ExtractEXIF(src)
+		if err != nil {
+			log.Printf("❌ EXIF 提取失败 (user=%d, file=%s): %v", user.ID, file.Filename, err)
+			// 不返回错误，继续上传流程
+		}
+
+		// ⚠️ 关键：重置文件指针到起始位置
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "文件读取错误"})
+			return
+		}
+
 		contentType := mime.TypeByExtension(ext)
 		if contentType == "" {
 			contentType = detectedType
@@ -98,12 +115,32 @@ func UploadPhoto(db *gorm.DB, cos *storage.COSStorage) gin.HandlerFunc {
 			CosKey:     cosKey,
 			CosURL:     cosURL,
 			UploadedAt: now,
+			// ✨ EXIF 字段
+			TakenAt:     exifData.TakenAt,
+			Latitude:    exifData.Latitude,
+			Longitude:   exifData.Longitude,
+			CameraMake:  exifData.CameraMake,
+			CameraModel: exifData.CameraModel,
 		}
 		if err := db.Create(&photo).Error; err != nil {
 			// COS 已上传成功但 DB 写入失败，尝试清理 COS（best-effort）
 			_ = cos.Delete(c.Request.Context(), cosKey)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库写入失败"})
 			return
+		}
+		log.Printf("✅ 照片入库成功 (photo_id=%d, cos_key=%s)", photo.ID, cosKey)
+
+		// ✨ 新增：如果有 GPS 坐标，加入地理编码队列
+		if photo.Latitude != nil && photo.Longitude != nil && geocodeWorker != nil {
+			log.Printf("🌍 照片包含 GPS 坐标，加入地理编码队列 (photo_id=%d, lat=%.6f, lon=%.6f)", 
+				photo.ID, *photo.Latitude, *photo.Longitude)
+			if err := geocodeWorker.Enqueue(photo.ID, *photo.Latitude, *photo.Longitude); err != nil {
+				log.Printf("❌ 地理编码入队失败 (photo_id=%d): %v", photo.ID, err)
+			} else {
+				log.Printf("✅ 地理编码任务已入队 (photo_id=%d)", photo.ID)
+			}
+		} else {
+			log.Printf("⚠️  照片不包含 GPS 坐标，跳过地理编码 (photo_id=%d)", photo.ID)
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -148,11 +185,16 @@ func ListPhotos(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		type photoItem struct {
-			ID           uint       `json:"id"`
-			URL          string     `json:"url"`
-			TakenAt      *time.Time `json:"taken_at"`
-			UploaderName string     `json:"uploader_name"`
-			UploadedAt   time.Time  `json:"uploaded_at"`
+			ID              uint       `json:"id"`
+			URL             string     `json:"url"`
+			TakenAt         *time.Time `json:"taken_at,omitempty"`
+			UploadedAt      time.Time  `json:"uploaded_at"`
+			Latitude        *float64   `json:"latitude,omitempty"`
+			Longitude       *float64   `json:"longitude,omitempty"`
+			LocationAddress *string    `json:"location_address,omitempty"`
+			CameraMake      *string    `json:"camera_make,omitempty"`
+			CameraModel     *string    `json:"camera_model,omitempty"`
+			UploaderName    string     `json:"uploader_name"`
 		}
 
 		var photos []models.Photo
@@ -164,11 +206,16 @@ func ListPhotos(db *gorm.DB) gin.HandlerFunc {
 		items := make([]photoItem, 0, len(photos))
 		for _, p := range photos {
 			items = append(items, photoItem{
-				ID:           p.ID,
-				URL:          p.CosURL,
-				TakenAt:      p.TakenAt,
-				UploaderName: p.User.Nickname,
-				UploadedAt:   p.UploadedAt,
+				ID:              p.ID,
+				URL:             p.CosURL,
+				TakenAt:         p.TakenAt,
+				UploadedAt:      p.UploadedAt,
+				Latitude:        p.Latitude,
+				Longitude:       p.Longitude,
+				LocationAddress: p.LocationAddress,
+				CameraMake:      p.CameraMake,
+				CameraModel:     p.CameraModel,
+				UploaderName:    p.User.Nickname,
 			})
 		}
 		c.JSON(http.StatusOK, gin.H{"photos": items})

@@ -20,7 +20,12 @@ data class PhotoDto(
     @SerializedName("url") val url: String,
     @SerializedName("taken_at") val takenAt: String?,
     @SerializedName("uploader_name") val uploaderName: String,
-    @SerializedName("uploaded_at") val uploadedAt: String
+    @SerializedName("uploaded_at") val uploadedAt: String,
+    @SerializedName("latitude") val latitude: Double?,
+    @SerializedName("longitude") val longitude: Double?,
+    @SerializedName("location_address") val locationAddress: String?,
+    @SerializedName("camera_make") val cameraMake: String?,
+    @SerializedName("camera_model") val cameraModel: String?
 )
 
 data class VersionResponse(
