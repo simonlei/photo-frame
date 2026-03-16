@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"io"
 	"log"
 	"time"
@@ -23,21 +22,28 @@ type EXIFData struct {
 func ExtractEXIF(src io.ReadSeeker) (*EXIFData, error) {
 	data := &EXIFData{}
 
-	// 只读取前 64KB（EXIF 通常在文件头部）
-	limitReader := io.LimitReader(src, 64*1024)
-
-	// 缓存读取的数据，避免影响原始流
-	buf := new(bytes.Buffer)
-	teeReader := io.TeeReader(limitReader, buf)
-
 	log.Println("📸 开始解析 EXIF 数据...")
-	x, err := exif.Decode(teeReader)
+	
+	// 直接解码，不使用 LimitReader（GPS 数据可能在较大的偏移位置）
+	x, err := exif.Decode(src)
 	if err != nil {
-		// 提取失败不应阻塞上传流程
-		log.Printf("⚠️  EXIF 解析失败（图片可能不包含 EXIF）: %v", err)
-		return data, nil // 返回空数据而非错误
+		// 检查是否是 GPS 特定的错误
+		if exif.IsGPSError(err) {
+			log.Printf("⚠️  GPS 数据解码失败: %v", err)
+			// GPS 失败但其他数据可用，继续处理
+			if !exif.IsCriticalError(err) {
+				log.Println("  其他 EXIF 数据仍可用，继续提取...")
+			} else {
+				return data, nil
+			}
+		} else {
+			// 提取失败不应阻塞上传流程
+			log.Printf("⚠️  EXIF 解析失败（图片可能不包含 EXIF）: %v", err)
+			return data, nil // 返回空数据而非错误
+		}
+	} else {
+		log.Println("✅ EXIF 数据解析成功")
 	}
-	log.Println("✅ EXIF 数据解析成功")
 
 	// 1. 提取拍摄时间
 	if tm, err := x.DateTime(); err == nil {
