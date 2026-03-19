@@ -123,24 +123,37 @@ private fun loadInviteQrCode() {
 }
 ```
 
-**第三步：BindActivity 在现有协程中异步生成**
+**第三步：BindActivity 通过 ViewModel + StateFlow 异步生成**
+
+> **⚠️ 架构变更（2026-03-19）：** BindActivity 已重构为 MVVM 架构。注册和轮询逻辑移入 `BindViewModel`，网络调用由 `RemoteDeviceRepository` 负责。Activity 仅负责 UI 渲染。
 
 ```kotlin
-// 在 registerDevice() 的 withContext(Dispatchers.IO) 块内
-val bitmap = withContext(Dispatchers.Default) {
-    QrCodeHelper.generateBitmap(qrToken)
-}
-withContext(Dispatchers.Main) {
-    bitmap?.let {
-        ivQr.setImageBitmap(it)
-        ivQr.visibility = View.VISIBLE
+// BindActivity 观察 ViewModel 状态，收到 ShowQrCode 时异步生成 QR
+lifecycleScope.launch {
+    viewModel.uiState.collect { state ->
+        when (state) {
+            is BindUiState.ShowQrCode -> showQrCode(state.qrToken)
+            // ... 其他状态处理 ...
+        }
     }
-    tvHint.text = "用微信扫码绑定相框"
-    startPollingBind()
+}
+
+// showQrCode() 在 Dispatchers.Default 上生成 Bitmap，主线程只做 setImageBitmap
+private fun showQrCode(qrToken: String) {
+    lifecycleScope.launch {
+        val bitmap = withContext(Dispatchers.Default) {
+            QrCodeHelper.generateBitmap(qrToken)
+        }
+        bitmap?.let {
+            ivQr.setImageBitmap(it)
+            ivQr.visibility = View.VISIBLE
+        }
+        tvHint.text = "用微信扫码绑定相框"
+    }
 }
 ```
 
-删除原有的 `showQrCode()` 函数（逻辑已内联，消除重复）。
+`showQrCode()` 保留为独立方法（职责清晰），轮询逻辑已完全移入 `BindViewModel.startPolling()`。
 
 ---
 
@@ -169,6 +182,35 @@ Log.d("BindActivity", "poll response body: $bodyStr")
 Log.d("BindActivity", "bind-status: bound=true, user_token=${if (token != null) "[PRESENT]" else "null"}")
 ```
 
+> **⚠️ 架构变更（2026-03-19）：** 上述 `Log.d` 调用在 BindActivity 重构后已被移除。轮询逻辑迁移到 `BindViewModel` + `RemoteDeviceRepository`，后者不包含任何 token 相关日志输出。`BindActivity.goMain()` 使用 `[PRESENT]` 模式记录 token 存在性。
+
+### ⚠️ 回归案例（2026-03-19 #051 修复）
+
+本问题在 `refactor/android-test-automation` 分支上**复发**。新增代码中 `token.take(8)` 再次出现在 `Log.d()` 调用中。根因是文档的防护建议仅覆盖手动 `Log.d()` 调用，遗漏了以下更隐蔽的泄露向量：
+
+**HttpLoggingInterceptor 日志级别风险：**
+
+```kotlin
+// ⚠️ Level.HEADERS 或 Level.BODY 会将 Authorization: Bearer <token> 写入 Logcat
+HttpLoggingInterceptor().apply {
+    level = HttpLoggingInterceptor.Level.BODY    // ← 危险！会输出完整 Headers + Body
+}
+
+// ✅ 当前正确配置：Level.BASIC 只输出请求方法、URL、状态码和响应体大小
+HttpLoggingInterceptor().apply {
+    level = HttpLoggingInterceptor.Level.BASIC   // ← 安全
+}
+```
+
+**建议：在 Release 构建中完全禁用日志拦截器：**
+
+```kotlin
+val loggingInterceptor = HttpLoggingInterceptor().apply {
+    level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC
+            else HttpLoggingInterceptor.Level.NONE
+}
+```
+
 ### 日志安全规则
 
 | ❌ 禁止 | ✅ 替代 |
@@ -177,6 +219,8 @@ Log.d("BindActivity", "bind-status: bound=true, user_token=${if (token != null) 
 | `Log.d("Auth", "token=${token.take(8)}")` | `Log.d("Auth", "token=${if (token != null) "[PRESENT]" else "null"}")` |
 | `Log.d("Login", "password=$password")` | 完全不记录 |
 | `Log.d("Debug", "headers=$headers")` | 过滤 Authorization header 后记录 |
+| `HttpLoggingInterceptor.Level.HEADERS` | `Level.BASIC`（不含 Headers/Body） |
+| `HttpLoggingInterceptor.Level.BODY` | `Level.BASIC`，Release 用 `Level.NONE` |
 
 ---
 
@@ -249,10 +293,13 @@ Log.d("BindActivity", "bind-status: bound=true, user_token=${if (token != null) 
 Code Review 时，在 `Log.*` 调用处搜索以下关键词，有任何一个出现即标记为安全问题：
 `token`, `password`, `secret`, `authorization`, `responseBody`, `bodyStr`, `body`
 
+**额外检查**：搜索 `HttpLoggingInterceptor`，确认 `level` 不是 `HEADERS` 或 `BODY`。Release 构建应使用 `Level.NONE`。
+
 ---
 
 ## 关联文档
 
+- [android-kotlin-token-leak-coroutine-okhttp-dead-code-review.md](./android-kotlin-token-leak-coroutine-okhttp-dead-code-review.md) — 2026-03-19 修复的 4 个 P1 问题（token 泄露复发 #051、CancellationException #052、裸 OkHttpClient #053、Repository 死代码 #054）
 - [photo-frame-comprehensive-code-review.md](./photo-frame-comprehensive-code-review.md) — 包含相关 Android 生命周期问题（CoroutineScope 未取消、onResume 重建 Adapter）
 - [go-admin-api-security-performance-docker.md](./go-admin-api-security-performance-docker.md) — Token 安全相关（Timing Attack、LocalStorage XSS）
 - [native-miniprogram-migration-and-patterns.md](../miniprogram-patterns/native-miniprogram-migration-and-patterns.md) — 小程序侧 QR token 解析模式

@@ -96,9 +96,11 @@ status: solved
 
 ### Android：OkHttp 连接泄漏
 
-`BindActivity` 直接使用原生 `OkHttpClient.execute()` 后读取 `body.string()`，未用 `use{}` 或 `close()` 关闭 response，导致 TCP 连接无法被连接池回收。每次 3 秒轮询一次，长期运行后连接数不断堆积。
+> **⚠️ 架构变更（2026-03-19）：** BindActivity 已重构为 MVVM 架构，网络调用迁移到 `RemoteDeviceRepository`。
 
-**根因：** OkHttp 同步调用返回的 `Response` 及其 `Body` 必须显式关闭，Kotlin `use{}` 扩展是最简洁的保证。
+`RemoteDeviceRepository` 通过 `ApiClient.baseHttpClient`（共享配置的 OkHttpClient）发起请求，并使用 `use{}` 正确关闭 response。原有的"Activity 直接调用 OkHttp"模式已被彻底消除。
+
+**根因（仍然有效）：** OkHttp 同步调用返回的 `Response` 及其 `Body` 必须显式关闭，Kotlin `use{}` 扩展是最简洁的保证。额外教训：不要在 Activity 中创建裸 `OkHttpClient()` —— 使用 `ApiClient.baseHttpClient` 共享拦截器、超时和连接池配置。
 
 ### 后端：环境未区分
 
@@ -305,24 +307,34 @@ networks:
 
 ### 6. OkHttp 连接泄漏修复：use{} 模式
 
+> **⚠️ 架构变更（2026-03-19）：** BindActivity 已重构为 MVVM 架构。网络调用不再直接在 Activity 中进行，而是通过 `BindViewModel` → `RemoteDeviceRepository` 三层架构。`use{}` 模式现在应用在 `RemoteDeviceRepository` 中。
+
 ```kotlin
-// android/.../BindActivity.kt（修复前 vs 修复后）
+// android/.../data/RemoteDeviceRepository.kt（当前实现）
+// ✅ httpClient 来自 ApiClient.baseHttpClient（共享配置、拦截器、连接池）
+class RemoteDeviceRepository(private val httpClient: OkHttpClient) : DeviceRepository {
 
-// ❌ 修复前：未关闭 response
-val resp = http.newCall(request).execute()
-val body = JSONObject(resp.body!!.string())   // 读完后 resp 未关闭
-
-// ✅ 修复后：use{} 自动关闭
-http.newCall(request).execute().use { resp ->
-    if (resp.isSuccessful) {
-        val bodyStr = resp.body?.string() ?: return@use
-        val body = JSONObject(bodyStr)
-        // 处理逻辑
-    }
-}  // ← 块结束时自动调用 resp.close()
+    override suspend fun registerDevice(serverBaseUrl: String): DeviceRegisterResult =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url("$serverBaseUrl/api/device/register")
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            // ✅ use{} 确保 response 在任何路径下都被关闭
+            httpClient.newCall(request).execute().use { resp ->
+                val bodyStr = resp.body?.string() ?: throw Exception("响应体为空")
+                if (!resp.isSuccessful) throw Exception("注册失败: ${resp.code}")
+                val body = JSONObject(bodyStr)
+                DeviceRegisterResult(
+                    deviceId = body.getString("device_id"),
+                    qrToken = body.getString("qr_token")
+                )
+            }
+        }
+}
 ```
 
-> **规则**：凡是调用 `OkHttpClient.execute()` 的地方，必须用 `use{}` 包裹，确保 `Response` 在任何路径下都被关闭。
+> **规则**：凡是调用 `OkHttpClient.execute()` 的地方，必须用 `use{}` 包裹，确保 `Response` 在任何路径下都被关闭。不要在 Activity 中直接创建 `OkHttpClient()` —— 使用 `ApiClient.baseHttpClient` 共享配置（详见 #053 修复）。
 
 ---
 
@@ -338,16 +350,21 @@ object ApiClient {
     }
 }
 
-// ✅ 修复后：init() 直接构建，checkNotNull 做防御
+// ✅ 修复后（当前实现）：init() 直接构建，checkNotNull 做防御
 object ApiClient {
     private var _service: ApiService? = null
 
-    fun init(url: String) {
-        val baseUrl = if (url.endsWith("/")) url else "$url/"
-        _service = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build().create(ApiService::class.java)
+    // ✅ baseHttpClient 使用 lazy{} 是安全的——它不依赖运行时参数
+    val baseHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BASIC
+            })
+            .build()
+    }
+
+    fun init(url: String, token: String?) {
+        _service = buildService(url, token)
     }
 
     val service: ApiService
@@ -361,15 +378,14 @@ object ApiClient {
 class PhotoFrameApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        ApiClient.init(getString(R.string.server_base_url))  // 最先执行
+        ApiClient.init(prefs.serverBaseUrl, prefs.userToken)  // 最先执行
     }
 }
-
-// AndroidManifest.xml
-// <application android:name=".PhotoFrameApplication" ...>
 ```
 
 > **规则**：全局单例的初始化应放在 `Application.onCreate()`，而非依赖 `lazy{}` 延迟求值。这是 Android 中"先于一切组件执行"的唯一保证点。
+>
+> **例外**：`baseHttpClient` 使用 `by lazy` 是安全的，因为它不依赖运行时配置（不含动态 baseUrl/token）。竞态问题仅存在于需要动态参数的 `service` 上。
 
 ---
 
@@ -519,7 +535,8 @@ if os.Getenv("APP_ENV") != "production" {
 | **DoubleFileValidation** | 文件上传 | 扩展名白名单 + Magic Bytes + `Seek(0)` 复位 |
 | **BestEffortRollback** | 分布式操作 | COS 上传成功后 DB 失败则 `cos.Delete()` |
 | **SafeResourceUse** | OkHttp 调用 | `response.use { ... }` |
-| **ApplicationInit** | 全局单例 | `Application.onCreate()` 中初始化 |
+| **SharedHttpClient** | OkHttp 客户端 | 不创建裸 `OkHttpClient()`，使用 `ApiClient.baseHttpClient` |
+| **ApplicationInit** | 全局单例 | `Application.onCreate()` 中初始化（运行时参数不用 `lazy{}`） |
 | **DiffUtilUpdate** | RecyclerView | `DiffUtil.calculateDiff()` 差量更新 |
 | **EnvironmentGuard** | 生产配置 | `if APP_ENV != "production"` 保护 |
 | **UnifiedRequestWrapper** | API 层 | 统一 `request<T>()` 检查 HTTP 状态码 |
@@ -547,11 +564,13 @@ if os.Getenv("APP_ENV") != "production" {
 
 #### Android
 - [ ] 所有 `OkHttpClient.execute()` 调用用 `use{}` 包裹
-- [ ] 单例服务在 `Application.onCreate()` 初始化，不用 `lazy{}` 延迟
-- [ ] `CoroutineScope` 在 `onDestroy()` 中 `cancel()`
+- [ ] 不在 Activity 中创建裸 `OkHttpClient()` — 使用 `ApiClient.baseHttpClient` 共享配置
+- [ ] 单例服务在 `Application.onCreate()` 初始化，需要运行时参数的属性不用 `lazy{}`（不依赖运行时参数的静态配置可以用 `lazy{}`）
+- [ ] `CoroutineScope` 在 `onDestroy()` 中 `cancel()`（使用 ViewModel 时通过 `viewModelScope` 自动管理）
 - [ ] RecyclerView/ViewPager2 Adapter 复用，不在 `onResume()` 重建
 - [ ] 列表数据更新使用 `DiffUtil`，不用 `notifyDataSetChanged()`
 - [ ] APK 自动更新校验 SHA-256
+- [ ] `HttpLoggingInterceptor` 不使用 `Level.HEADERS` 或 `Level.BODY`，Release 构建用 `Level.NONE`
 
 #### 小程序
 - [ ] `uni.request` 的 `success` 回调检查 `statusCode`
