@@ -12,19 +12,22 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
 import com.photoframe.adapter.SlideShowAdapter
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
-import com.photoframe.data.Photo
 import com.photoframe.service.PhotoSyncService
 import com.photoframe.service.ScreenScheduler
 import com.photoframe.updater.AutoUpdater
+import com.photoframe.viewmodel.MainViewModel
+import com.photoframe.viewmodel.MainViewModelFactory
 import java.lang.ref.WeakReference
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: AppPrefs
+    private lateinit var viewModel: MainViewModel
     private lateinit var viewPager: ViewPager2
     private lateinit var adapter: SlideShowAdapter
     private lateinit var syncService: PhotoSyncService
@@ -32,19 +35,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var autoUpdater: AutoUpdater
 
     private val handler = Handler(Looper.getMainLooper())
-    private val allPhotos = mutableListOf<Photo>()
-    private var isNightMode = false
     private lateinit var gestureDetector: GestureDetector
 
     private val autoSlideRunnable = object : Runnable {
         override fun run() {
-            if (allPhotos.isEmpty()) {
+            val state = viewModel.uiState.value
+            if (state.photos.isEmpty()) {
                 handler.postDelayed(this, 5_000)
                 return
             }
-            val next = (viewPager.currentItem + 1) % allPhotos.size
+            val next = viewModel.nextPageIndex()
             viewPager.setCurrentItem(next, true)
-            handler.postDelayed(this, prefs.slideDurationSec * 1_000L)
+            handler.postDelayed(this, state.slideDurationMs)
         }
     }
 
@@ -52,7 +54,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         prefs = AppPrefs(this)
-        // ApiClient 已在 PhotoFrameApplication.onCreate() 中初始化，此处无需重复调用
+        viewModel = ViewModelProvider(this, MainViewModelFactory(prefs))[MainViewModel::class.java]
+        viewModel.loadPreferences()
 
         // 全屏沉浸式
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -68,7 +71,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         viewPager = findViewById(R.id.view_pager)
 
-        adapter = SlideShowAdapter(allPhotos, prefs.showPhotoInfo)
+        val state = viewModel.uiState.value
+        adapter = SlideShowAdapter(state.photos, state.showPhotoInfo)
         viewPager.adapter = adapter
         applyTransitionEffect()
 
@@ -76,10 +80,10 @@ class MainActivity : AppCompatActivity() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 // 先恢复亮度（夜间模式下触摸唤醒）
-                if (isNightMode) {
+                if (viewModel.uiState.value.isNightMode) {
                     screenScheduler.setBrightness(-1f)
-                    isNightMode = false
-                    handler.postDelayed({ isNightMode = true }, 30_000)
+                    viewModel.setNightMode(false)
+                    handler.postDelayed({ viewModel.setNightMode(true) }, 30_000)
                 } else {
                     startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
                 }
@@ -89,26 +93,18 @@ class MainActivity : AppCompatActivity() {
 
         // 同步服务
         syncService = PhotoSyncService(this) { newPhotos ->
-            android.util.Log.d("MainActivity", "收到 ${newPhotos.size} 张照片，当前已有 ${allPhotos.size} 张")
-            val existingIds = allPhotos.map { it.id }.toSet()
-            val fresh = newPhotos.filter { it.id !in existingIds }
-            android.util.Log.d("MainActivity", "去重后新增 ${fresh.size} 张")
-            if (fresh.isNotEmpty()) {
-                if (prefs.playMode == "random") {
-                    allPhotos.addAll(fresh)
-                    allPhotos.shuffle()
-                } else {
-                    allPhotos.addAll(fresh)
-                }
-                android.util.Log.d("MainActivity", "更新 adapter，总计 ${allPhotos.size} 张")
-                adapter.updatePhotos(allPhotos.toList())
-            }
+            android.util.Log.d("MainActivity", "收到 ${newPhotos.size} 张照片，当前已有 ${viewModel.uiState.value.photos.size} 张")
+            viewModel.onNewPhotos(newPhotos)
+            // 更新 adapter
+            val updatedPhotos = viewModel.uiState.value.photos
+            android.util.Log.d("MainActivity", "更新 adapter，总计 ${updatedPhotos.size} 张")
+            adapter.updatePhotos(updatedPhotos)
         }
 
         // 定时黑屏
         screenScheduler = ScreenScheduler(this)
         screenScheduler.nightModeListener = WeakReference { isNight ->
-            isNightMode = isNight
+            viewModel.setNightMode(isNight)
         }
 
         // 注册 401 回调：Token 过期时清除绑定状态并跳转重新绑定
@@ -130,12 +126,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 从设置页返回后重新应用切换效果（不重建 Adapter，保持当前播放位置）
-        adapter.setShowInfo(prefs.showPhotoInfo)
+        // 从设置页返回后重新应用偏好
+        viewModel.loadPreferences()
+        val state = viewModel.uiState.value
+        adapter.setShowInfo(state.showPhotoInfo)
         applyTransitionEffect()
 
         handler.removeCallbacks(autoSlideRunnable)
-        handler.postDelayed(autoSlideRunnable, prefs.slideDurationSec * 1_000L)
+        handler.postDelayed(autoSlideRunnable, state.slideDurationMs)
 
         syncService.start()
         screenScheduler.start()
@@ -159,7 +157,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyTransitionEffect() {
-        when (prefs.transitionEffect) {
+        when (viewModel.uiState.value.transitionEffect) {
             "slide" -> viewPager.setPageTransformer(null) // 默认滑动
             "zoom" -> viewPager.setPageTransformer(ZoomPageTransformer())
             else -> viewPager.setPageTransformer(FadePageTransformer())
