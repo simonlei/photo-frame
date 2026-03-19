@@ -5,11 +5,16 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
 import com.photoframe.updater.AutoUpdater
 import com.photoframe.util.QrCodeHelper
+import com.photoframe.viewmodel.SettingsSaveResult
+import com.photoframe.viewmodel.SettingsUiState
+import com.photoframe.viewmodel.SettingsViewModel
+import com.photoframe.viewmodel.SettingsViewModelFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -17,15 +22,22 @@ import kotlinx.coroutines.withContext
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var prefs: AppPrefs
+    private lateinit var viewModel: SettingsViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = AppPrefs(this)
+        viewModel = ViewModelProvider(this, SettingsViewModelFactory(prefs))[SettingsViewModel::class.java]
+
         setContentView(R.layout.activity_settings)
+
+        // 加载设置到 ViewModel
+        viewModel.loadSettings()
+        val state = viewModel.uiState.value
 
         // 服务器地址
         val etServerUrl = findViewById<EditText>(R.id.et_server_url)
-        etServerUrl.setText(prefs.serverBaseUrl)
+        etServerUrl.setText(state.serverBaseUrl)
 
         val defaultUrl = getString(R.string.server_base_url)
         findViewById<Button>(R.id.btn_reset_url).setOnClickListener {
@@ -34,11 +46,11 @@ class SettingsActivity : AppCompatActivity() {
 
         // 展示时长
         val etDuration = findViewById<EditText>(R.id.et_duration)
-        etDuration.setText(prefs.slideDurationSec.toString())
+        etDuration.setText(state.slideDurationSec.toString())
 
         // 播放模式
         val rgPlayMode = findViewById<RadioGroup>(R.id.rg_play_mode)
-        if (prefs.playMode == "random") {
+        if (state.playMode == "random") {
             rgPlayMode.check(R.id.rb_random)
         } else {
             rgPlayMode.check(R.id.rb_sequential)
@@ -50,74 +62,68 @@ class SettingsActivity : AppCompatActivity() {
         val effectLabels = arrayOf("淡入淡出", "左右滑动", "缩放")
         spinnerEffect.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, effectLabels)
             .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-        spinnerEffect.setSelection(effects.indexOf(prefs.transitionEffect).coerceAtLeast(0))
+        spinnerEffect.setSelection(effects.indexOf(state.transitionEffect).coerceAtLeast(0))
 
         // 显示照片信息
         val switchInfo = findViewById<Switch>(R.id.switch_photo_info)
-        switchInfo.isChecked = prefs.showPhotoInfo
+        switchInfo.isChecked = state.showPhotoInfo
 
         // 定时黑屏
         val switchNight = findViewById<Switch>(R.id.switch_night)
         val layoutNightTime = findViewById<LinearLayout>(R.id.layout_night_time)
-        switchNight.isChecked = prefs.nightModeEnabled
-        layoutNightTime.visibility = if (prefs.nightModeEnabled) LinearLayout.VISIBLE else LinearLayout.GONE
+        switchNight.isChecked = state.nightModeEnabled
+        layoutNightTime.visibility = if (state.nightModeEnabled) LinearLayout.VISIBLE else LinearLayout.GONE
         switchNight.setOnCheckedChangeListener { _, checked ->
             layoutNightTime.visibility = if (checked) LinearLayout.VISIBLE else LinearLayout.GONE
         }
 
         val tpNightStart = findViewById<TimePicker>(R.id.tp_night_start)
         tpNightStart.setIs24HourView(true)
-        tpNightStart.hour = prefs.nightModeStartHour
-        tpNightStart.minute = prefs.nightModeStartMinute
+        tpNightStart.hour = state.nightModeStartHour
+        tpNightStart.minute = state.nightModeStartMinute
 
         val tpNightEnd = findViewById<TimePicker>(R.id.tp_night_end)
         tpNightEnd.setIs24HourView(true)
-        tpNightEnd.hour = prefs.nightModeEndHour
-        tpNightEnd.minute = prefs.nightModeEndMinute
+        tpNightEnd.hour = state.nightModeEndHour
+        tpNightEnd.minute = state.nightModeEndMinute
 
         // 相框 ID
         val tvDeviceId = findViewById<TextView>(R.id.tv_device_id)
-        tvDeviceId.text = "相框 ID: ${prefs.deviceId ?: "未注册"}"
+        tvDeviceId.text = "相框 ID: ${state.deviceId ?: "未注册"}"
 
         // 邀请家人二维码
         loadInviteQrCode()
 
         // 保存
         findViewById<Button>(R.id.btn_save).setOnClickListener {
-            val newUrl = etServerUrl.text.toString().trim()
-            if (newUrl.isEmpty() || (!newUrl.startsWith("http://") && !newUrl.startsWith("https://"))) {
-                Toast.makeText(this, "服务器地址格式不正确，请以 http:// 或 https:// 开头", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
+            val newState = SettingsUiState(
+                serverBaseUrl = etServerUrl.text.toString().trim(),
+                slideDurationSec = etDuration.text.toString().toIntOrNull() ?: 15,
+                playMode = if (rgPlayMode.checkedRadioButtonId == R.id.rb_random) "random" else "sequential",
+                transitionEffect = effects[spinnerEffect.selectedItemPosition],
+                showPhotoInfo = switchInfo.isChecked,
+                nightModeEnabled = switchNight.isChecked,
+                nightModeStartHour = tpNightStart.hour,
+                nightModeStartMinute = tpNightStart.minute,
+                nightModeEndHour = tpNightEnd.hour,
+                nightModeEndMinute = tpNightEnd.minute
+            )
 
-            val urlChanged = newUrl != prefs.serverBaseUrl
-
-            prefs.slideDurationSec = etDuration.text.toString().toIntOrNull()?.coerceIn(5, 300) ?: 15
-            prefs.playMode = if (rgPlayMode.checkedRadioButtonId == R.id.rb_random) "random" else "sequential"
-            prefs.transitionEffect = effects[spinnerEffect.selectedItemPosition]
-            prefs.showPhotoInfo = switchInfo.isChecked
-            prefs.nightModeEnabled = switchNight.isChecked
-            prefs.nightModeStartHour = tpNightStart.hour
-            prefs.nightModeStartMinute = tpNightStart.minute
-            prefs.nightModeEndHour = tpNightEnd.hour
-            prefs.nightModeEndMinute = tpNightEnd.minute
-
-            if (urlChanged) {
-                // 服务器地址变更：清除绑定状态，重新初始化 ApiClient，跳转重新绑定
-                prefs.serverBaseUrl = newUrl
-                prefs.isBound = false
-                prefs.userToken = null
-                prefs.deviceId = null
-                prefs.qrToken = null
-                prefs.lastSyncTime = null
-                ApiClient.reinit(newUrl, null)
-                Toast.makeText(this, "服务器地址已更新，请重新绑定相框", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, BindActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                })
-            } else {
-                Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
-                finish()
+            when (val result = viewModel.saveSettings(newState)) {
+                is SettingsSaveResult.ValidationError -> {
+                    Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                }
+                is SettingsSaveResult.ServerUrlChanged -> {
+                    ApiClient.reinit(result.newUrl, null)
+                    Toast.makeText(this, "服务器地址已更新，请重新绑定相框", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, BindActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                }
+                is SettingsSaveResult.Success -> {
+                    Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
             }
         }
 
