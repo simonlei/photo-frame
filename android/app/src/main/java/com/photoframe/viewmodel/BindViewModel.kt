@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoframe.data.AppPrefs
 import com.photoframe.data.DeviceRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +21,12 @@ sealed class BindUiState {
 
 class BindViewModel(
     private val prefs: AppPrefs,
-    private val deviceRepo: DeviceRepository
+    private val deviceRepo: DeviceRepository,
+    // 测试时可注入自定义 scope，生产环境使用 viewModelScope
+    private val externalScope: CoroutineScope? = null
 ) : ViewModel() {
+
+    private val scope: CoroutineScope get() = externalScope ?: viewModelScope
 
     private val _uiState = MutableStateFlow<BindUiState>(BindUiState.Loading)
     val uiState: StateFlow<BindUiState> = _uiState
@@ -37,7 +42,7 @@ class BindViewModel(
     }
 
     private fun registerDevice() {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 // 如有已保存的 deviceId + qrToken，直接复用
                 val existingDeviceId = prefs.deviceId
@@ -61,7 +66,7 @@ class BindViewModel(
 
     private fun startPolling(deviceId: String) {
         pollJob?.cancel()
-        pollJob = viewModelScope.launch {
+        pollJob = scope.launch {
             while (true) {
                 delay(3_000)
                 try {
