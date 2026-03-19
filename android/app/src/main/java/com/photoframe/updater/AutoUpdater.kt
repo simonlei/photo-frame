@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.photoframe.data.ApiClient
+import com.photoframe.util.isNewerVersion
 import kotlinx.coroutines.*
 import java.io.File
 import java.security.MessageDigest
@@ -32,7 +33,7 @@ class AutoUpdater(private val activity: Activity) {
                     withContext(Dispatchers.Main) { onNoUpdate?.invoke() }
                     return@launch
                 }
-                if (serverVersion.isNewerThan(currentVersion) && resp.apkUrl != null) {
+                if (isNewerVersion(serverVersion, currentVersion) && resp.apkUrl != null) {
                     withContext(Dispatchers.Main) {
                         showUpdateDialog(resp.apkUrl, serverVersion, resp.changelog, resp.apkSha256)
                     }
@@ -141,16 +142,4 @@ class AutoUpdater(private val activity: Activity) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     }
-}
-
-private fun String.isNewerThan(other: String): Boolean {
-    fun parts(v: String) = v.split(".").mapNotNull { it.toIntOrNull() }
-    val a = parts(this)
-    val b = parts(other)
-    for (i in 0 until maxOf(a.size, b.size)) {
-        val ai = a.getOrElse(i) { 0 }
-        val bi = b.getOrElse(i) { 0 }
-        if (ai != bi) return ai > bi
-    }
-    return false
 }

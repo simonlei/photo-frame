@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import com.photoframe.data.AppPrefs
+import com.photoframe.util.isInNightPeriod
 import java.lang.ref.WeakReference
 import java.util.Calendar
 
@@ -38,16 +39,14 @@ class ScreenScheduler(private val activity: Activity) {
 
     private fun updateBrightness() {
         val cal = Calendar.getInstance()
-        val curMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val nightStart = prefs.nightModeStartHour * 60 + prefs.nightModeStartMinute
-        val nightEnd = prefs.nightModeEndHour * 60 + prefs.nightModeEndMinute
-
-        val isNightTime = if (nightStart <= nightEnd) {
-            curMinutes in nightStart until nightEnd
-        } else {
-            // 跨午夜情况，如 22:00 ~ 08:00
-            curMinutes >= nightStart || curMinutes < nightEnd
-        }
+        val isNightTime = isInNightPeriod(
+            currentHour = cal.get(Calendar.HOUR_OF_DAY),
+            currentMinute = cal.get(Calendar.MINUTE),
+            startHour = prefs.nightModeStartHour,
+            startMinute = prefs.nightModeStartMinute,
+            endHour = prefs.nightModeEndHour,
+            endMinute = prefs.nightModeEndMinute
+        )
 
         setBrightness(if (isNightTime) 0.01f else -1f)
         nightModeListener?.get()?.invoke(isNightTime)
