@@ -2,10 +2,9 @@ package com.photoframe.service
 
 import android.content.Context
 import android.util.Log
-import com.photoframe.R
-import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
 import com.photoframe.data.Photo
+import com.photoframe.data.PhotoRepository
 import kotlinx.coroutines.*
 
 /**
@@ -13,6 +12,7 @@ import kotlinx.coroutines.*
  */
 class PhotoSyncService(
     private val context: Context,
+    private val photoRepository: PhotoRepository,
     private val onPhotosUpdated: (List<Photo>) -> Unit
 ) {
     private val TAG = "PhotoSyncService"
@@ -56,32 +56,12 @@ class PhotoSyncService(
 
     private suspend fun fetchPhotos(since: String?) {
         val deviceId = prefs.deviceId ?: return
-        val baseUrl = context.getString(R.string.server_base_url).trimEnd('/')
 
         Log.d(TAG, "请求照片列表: deviceId=$deviceId, since=$since")
-        val response = ApiClient.service.listPhotos(
-            deviceId = deviceId,
-            since = since
-        )
+        val photos = photoRepository.getPhotos(deviceId, since)
 
-        Log.d(TAG, "服务端返回 ${response.photos.size} 张照片")
-        if (response.photos.isNotEmpty()) {
-            val photos = response.photos.map {
-                // 服务端可能返回相对路径（如 /uploads/xxx.jpg），需要补全为绝对 URL
-                val fullUrl = if (it.url.startsWith("http")) it.url else "$baseUrl${it.url}"
-                Photo(
-                    id = it.id,
-                    url = fullUrl,
-                    takenAt = it.takenAt,
-                    uploadedAt = it.uploadedAt,
-                    latitude = it.latitude,
-                    longitude = it.longitude,
-                    locationAddress = it.locationAddress,
-                    cameraMake = it.cameraMake,
-                    cameraModel = it.cameraModel,
-                    uploaderName = it.uploaderName
-                )
-            }
+        Log.d(TAG, "服务端返回 ${photos.size} 张照片")
+        if (photos.isNotEmpty()) {
             // 更新最后同步时间为最新一张的 uploadedAt
             prefs.lastSyncTime = photos.last().uploadedAt
             Log.d(TAG, "拉取到 ${photos.size} 张照片, 更新 lastSyncTime=${prefs.lastSyncTime}")

@@ -18,7 +18,6 @@ import com.photoframe.viewmodel.BindUiState
 import com.photoframe.viewmodel.BindViewModel
 import com.photoframe.viewmodel.BindViewModelFactory
 import kotlinx.coroutines.*
-import okhttp3.OkHttpClient
 
 /**
  * 首次启动：注册设备并显示二维码，等待用户扫码绑定
@@ -35,15 +34,9 @@ class BindActivity : AppCompatActivity() {
 
         prefs = AppPrefs(this)
 
-        // 初始化 ViewModel
-        val deviceRepo = RemoteDeviceRepository(OkHttpClient())
+        // 初始化 ViewModel — 使用 ApiClient.baseHttpClient 共享网络配置
+        val deviceRepo = RemoteDeviceRepository(ApiClient.baseHttpClient)
         viewModel = ViewModelProvider(this, BindViewModelFactory(prefs, deviceRepo))[BindViewModel::class.java]
-
-        // 已绑定且 token 有效，直接进主界面
-        if (prefs.isBound && prefs.deviceId != null && prefs.userToken != null) {
-            goMain()
-            return
-        }
 
         setContentView(R.layout.activity_bind)
         ivQr = findViewById(R.id.iv_qr)
@@ -96,7 +89,7 @@ class BindActivity : AppCompatActivity() {
     }
 
     private fun goMain() {
-        Log.d("BindActivity", "goMain() reinit ApiClient with token=${prefs.userToken?.take(8) ?: "null"}")
+        Log.d("BindActivity", "goMain() reinit ApiClient with token=${if (prefs.userToken != null) "[PRESENT]" else "null"}")
         ApiClient.init(prefs.serverBaseUrl, prefs.userToken)
         startActivity(Intent(this, MainActivity::class.java))
         finish()

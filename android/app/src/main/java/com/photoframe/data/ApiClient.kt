@@ -63,15 +63,24 @@ object ApiClient {
     /** 收到 401 时的回调，由 MainActivity 注册，用于触发重新绑定流程 */
     var onUnauthorized: (() -> Unit)? = null
 
+    /** 不带 Auth 拦截器的 base OkHttpClient，可供 RemoteDeviceRepository 等共享 */
+    val baseHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BASIC
+            })
+            .build()
+    }
+
     fun init(url: String, token: String?) {
-        Log.d(TAG, "init() token=${if (token != null) "present(${token.take(8)}...)" else "null"}")
+        Log.d(TAG, "init() token=${if (token != null) "[PRESENT]" else "null"}")
         _service = buildService(url, token)
     }
 
     /** 服务器地址或 Token 变更后重新初始化（调用前应停止 PhotoSyncService） */
     @Synchronized
     fun reinit(url: String, token: String?) {
-        Log.d(TAG, "reinit() url=$url token=${if (token != null) "present(${token.take(8)}...)" else "null"}")
+        Log.d(TAG, "reinit() url=$url token=${if (token != null) "[PRESENT]" else "null"}")
         _service = buildService(url, token)
     }
 

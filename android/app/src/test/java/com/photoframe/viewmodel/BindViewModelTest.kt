@@ -123,4 +123,24 @@ class BindViewModelTest {
         assertEquals(BindUiState.BindSuccess, vm.uiState.value)
         verify { prefs.userToken = "jwt-retry" }
     }
+
+    @Test
+    fun `poll emits Error after max retries`() = runTest {
+        coEvery { deviceRepo.registerDevice(any()) } returns
+            DeviceRegisterResult("dev-1", "token-abc")
+        coEvery { deviceRepo.checkBindStatus(any(), any()) } throws
+            RuntimeException("server down")
+
+        val vm = BindViewModel(prefs, deviceRepo, externalScope = backgroundScope)
+        vm.checkBindingStatus()
+
+        // 快进超过最大重试次数 (200 次 × 3s = 600s，前 5 次 3s，之后 10s)
+        // 5 次 × 3s = 15s, 然后 195 次 × 10s = 1950s, 共 1965s
+        advanceTimeBy(2_000_000)
+        runCurrent()
+
+        val state = vm.uiState.value
+        assertTrue(state is BindUiState.Error, "Expected Error after max retries but got $state")
+        assertTrue((state as BindUiState.Error).message.contains("超时"))
+    }
 }

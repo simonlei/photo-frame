@@ -17,6 +17,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.photoframe.adapter.SlideShowAdapter
 import com.photoframe.data.ApiClient
 import com.photoframe.data.AppPrefs
+import com.photoframe.data.RemotePhotoRepository
 import com.photoframe.service.PhotoSyncService
 import com.photoframe.service.ScreenScheduler
 import com.photoframe.updater.AutoUpdater
@@ -91,8 +92,9 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // 同步服务
-        syncService = PhotoSyncService(this) { newPhotos ->
+        // 同步服务 — 使用 Repository 统一数据访问路径
+        val photoRepo = RemotePhotoRepository(ApiClient.service, prefs.serverBaseUrl)
+        syncService = PhotoSyncService(this, photoRepo) { newPhotos ->
             android.util.Log.d("MainActivity", "收到 ${newPhotos.size} 张照片，当前已有 ${viewModel.uiState.value.photos.size} 张")
             viewModel.onNewPhotos(newPhotos)
             // 更新 adapter

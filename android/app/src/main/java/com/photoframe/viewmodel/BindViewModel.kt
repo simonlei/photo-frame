@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoframe.data.AppPrefs
 import com.photoframe.data.DeviceRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -67,18 +68,28 @@ class BindViewModel(
     private fun startPolling(deviceId: String) {
         pollJob?.cancel()
         pollJob = scope.launch {
+            var consecutiveFailures = 0
+            val maxRetries = 200 // ~10 分钟 (200 * 3s)
             while (true) {
-                delay(3_000)
+                val delayMs = if (consecutiveFailures > 5) 10_000L else 3_000L
+                delay(delayMs)
                 try {
                     val status = deviceRepo.checkBindStatus(prefs.serverBaseUrl, deviceId)
+                    consecutiveFailures = 0
                     if (status.bound && !status.userToken.isNullOrEmpty()) {
                         prefs.userToken = status.userToken
                         prefs.isBound = true
                         _uiState.value = BindUiState.BindSuccess
                         break
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
-                    // 轮询失败静默忽略，继续重试
+                    consecutiveFailures++
+                    if (consecutiveFailures >= maxRetries) {
+                        _uiState.value = BindUiState.Error("轮询超时，请检查网络后重试")
+                        break
+                    }
                 }
             }
         }
