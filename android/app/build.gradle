@@ -52,6 +52,15 @@ android {
             maxHeapSize = "2g"
             jvmArgs '-XX:+UseG1GC'
         }
+        managedDevices {
+            devices {
+                pixel2Api30(com.android.build.api.dsl.ManagedVirtualDevice) {
+                    device = "Pixel 2"
+                    apiLevel = 30
+                    systemImageSource = "aosp-atd"  // Automated Test Device image, smaller & faster
+                }
+            }
+        }
     }
 }
 
