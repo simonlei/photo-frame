@@ -14,6 +14,8 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -44,6 +46,17 @@ android {
 
     buildFeatures {
         viewBinding true
+    }
+
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/LICENSE.md',
+                'META-INF/LICENSE-notice.md',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+            ]
+        }
     }
 
     testOptions {
