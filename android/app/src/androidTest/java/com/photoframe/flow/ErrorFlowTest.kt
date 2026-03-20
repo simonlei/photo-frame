@@ -4,11 +4,11 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.intent.Intents
-import androidx.test.espresso.intent.matcher.IntentMatchers.hasComponent
 import androidx.test.espresso.matcher.ViewMatchers.*
 import com.photoframe.BindActivity
 import com.photoframe.MainActivity
 import com.photoframe.R
+import com.photoframe.data.ApiClient
 import com.photoframe.util.MockResponses
 import com.photoframe.util.MockServerTestBase
 import org.junit.Test
@@ -33,12 +33,10 @@ class ErrorFlowTest : MockServerTestBase() {
         prefs.qrToken = null
         prefs.userToken = null
 
-        server.enqueue(MockResponses.serverError())
+        enqueueForPath("/api/device/register", MockResponses.serverError())
 
         val scenario = ActivityScenario.launch(BindActivity::class.java)
-        // 等待网络请求完成
-        Thread.sleep(2_000)
-        // 验证错误状态：注册失败后 tv_hint 应显示错误提示
+        Thread.sleep(3_000)
         onView(withId(R.id.tv_hint)).check(matches(isDisplayed()))
         scenario.close()
     }
@@ -48,11 +46,13 @@ class ErrorFlowTest : MockServerTestBase() {
         prefs.isBound = true
         prefs.userToken = "test-token"
         prefs.deviceId = "dev-test"
+        ApiClient.init(mockServerUrl, "test-token")
 
-        server.enqueue(MockResponses.emptyPhotoList())
+        enqueueForPath("/api/photos", MockResponses.emptyPhotoList())
+        enqueueForPath("/api/version/latest", MockResponses.latestVersion())
 
         val scenario = ActivityScenario.launch(MainActivity::class.java)
-        // 验证空照片列表不崩溃，ViewPager2 仍然可见
+        Thread.sleep(3_000)
         onView(withId(R.id.view_pager)).check(matches(isDisplayed()))
         scenario.close()
     }

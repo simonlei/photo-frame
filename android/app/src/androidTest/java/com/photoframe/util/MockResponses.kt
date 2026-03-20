@@ -31,6 +31,11 @@ object MockResponses {
             .setResponseCode(200)
             .setBody("""{"photos":[]}""")
 
+    fun latestVersion(version: String = "1.0.0") =
+        MockResponse()
+            .setResponseCode(200)
+            .setBody("""{"version":"$version","apk_url":null,"apk_sha256":null,"changelog":null}""")
+
     fun serverError() = MockResponse().setResponseCode(500)
 
     fun unauthorized() = MockResponse().setResponseCode(401)

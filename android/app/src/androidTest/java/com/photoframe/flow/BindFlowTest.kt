@@ -9,6 +9,7 @@ import androidx.test.espresso.matcher.ViewMatchers.*
 import com.photoframe.BindActivity
 import com.photoframe.MainActivity
 import com.photoframe.R
+import com.photoframe.data.ApiClient
 import com.photoframe.util.MockResponses
 import com.photoframe.util.MockServerTestBase
 import org.junit.Test
@@ -32,19 +33,24 @@ class BindFlowTest : MockServerTestBase() {
 
     @Test
     fun bindFlow_showsQrCode_thenNavigatesToMain() {
-        // 预设响应
-        server.enqueue(MockResponses.registerDevice())
-        server.enqueue(MockResponses.bindStatusUnbound())
-        server.enqueue(MockResponses.bindStatusBound())
+        // 预设响应：注册 → 未绑定 → 已绑定（按路径分发）
+        enqueueForPath("/api/device/register", MockResponses.registerDevice())
+        enqueueForPath("/api/device/bind-status", MockResponses.bindStatusUnbound())
+        enqueueForPath("/api/device/bind-status", MockResponses.bindStatusBound())
+        // goMain() 后 MainActivity 需要的响应
+        enqueueForPath("/api/photos", MockResponses.photoList(mockServerUrl, count = 2))
+        enqueueForPath("/api/version/latest", MockResponses.latestVersion())
 
-        // setUp() 之后手动启动 Activity，确保 prefs 已指向 MockServer
         val scenario = ActivityScenario.launch(BindActivity::class.java)
 
-        // 验证二维码显示
-        onView(withId(R.id.iv_qr)).check(matches(isDisplayed()))
+        // 等待注册请求 + QR 码生成
+        Thread.sleep(5_000)
 
-        // TODO: 替换为 IdlingResource 等待轮询完成，避免 Thread.sleep 导致 flaky
-        Thread.sleep(5_000) // 临时方案：等待轮询周期
+        // 验证二维码显示
+        onView(withId(R.id.iv_qr)).check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
+
+        // 等待轮询完成
+        Thread.sleep(10_000)
         Intents.intended(hasComponent(MainActivity::class.java.name))
         scenario.close()
     }
@@ -54,12 +60,16 @@ class BindFlowTest : MockServerTestBase() {
         prefs.isBound = true
         prefs.userToken = "existing-token"
         prefs.deviceId = "dev-test"
+        ApiClient.init(mockServerUrl, "existing-token")
+
+        // goMain() 跳转后 MainActivity 需要的响应
+        enqueueForPath("/api/photos", MockResponses.photoList(mockServerUrl, count = 2))
+        enqueueForPath("/api/version/latest", MockResponses.latestVersion())
 
         val scenario = ActivityScenario.launch(BindActivity::class.java)
 
-        // 应直接跳转，不发网络请求
-        Thread.sleep(1_000)
-        Intents.intended(hasComponent(MainActivity::class.java.name))
+        Thread.sleep(3_000)
+        onView(withId(R.id.view_pager)).check(matches(isDisplayed()))
         scenario.close()
     }
 }

@@ -74,4 +74,9 @@ class AppPrefs(private val context: Context) {
         get() = prefs.getString("server_base_url", null)
             ?: context.getString(com.photoframe.R.string.server_base_url)
         set(v) = prefs.edit().putString("server_base_url", v).apply()
+
+    // 测试模式标志（E2E 测试时设为 true，跳过沉浸式全屏等与 Espresso 冲突的行为）
+    var isTestMode: Boolean
+        get() = prefs.getBoolean("is_test_mode", false)
+        set(v) = prefs.edit().putBoolean("is_test_mode", v).apply()
 }

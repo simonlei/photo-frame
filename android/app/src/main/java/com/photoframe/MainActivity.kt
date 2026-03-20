@@ -58,12 +58,14 @@ class MainActivity : AppCompatActivity() {
         viewModel = ViewModelProvider(this, MainViewModelFactory(prefs))[MainViewModel::class.java]
         viewModel.loadPreferences()
 
-        // 全屏沉浸式
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // 全屏沉浸式（测试模式下跳过，避免 Espresso 的 window-focus 检测冲突）
+        if (!prefs.isTestMode) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
         }
 
         // 屏幕常亮
